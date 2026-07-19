@@ -1,0 +1,24 @@
+# Local photo collections and generated media
+photos/
+private_photos/
+gallery/photos/
+gallery/thumbnails/
+
+# Local settings and secrets
+.env
+.env.*
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated reports
+reports/
