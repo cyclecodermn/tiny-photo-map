@@ -82,6 +82,22 @@ class StaticGalleryTest(unittest.TestCase):
         }:
             self.assertIn(expected, app)
 
+    def test_selected_photo_fills_frame_without_cropping(self):
+        styles = (GALLERY / "styles.css").read_text(encoding="utf-8")
+
+        image_rule = re.search(r"\.photo-frame img \{(?P<body>[^}]+)\}", styles)
+        self.assertIsNotNone(image_rule)
+        rule_body = image_rule.group("body")
+
+        for expected in {
+            "width: 100%;",
+            "height: 100%;",
+            "max-width: 100%;",
+            "max-height: 100%;",
+            "object-fit: contain;",
+        }:
+            self.assertIn(expected, rule_body)
+
 
 if __name__ == "__main__":
     unittest.main()
