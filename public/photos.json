@@ -1,0 +1,49 @@
+{
+  "photos": [
+    {
+      "alt": "Illustrated coastal overlook with a harbor below",
+      "caption": "Harbor overlook at first light",
+      "date": "2026-05-14",
+      "demoLocation": "Sellwood Riverfront Park",
+      "demoLocationNote": "Demonstration data only; this placeholder image was not taken at this location.",
+      "id": "harbor-overlook",
+      "image": "sample_photos/harbor-overlook.svg",
+      "lat": 45.4659,
+      "lon": -122.663
+    },
+    {
+      "alt": "Illustrated ridge trail crossing green hills",
+      "caption": "Ridge trail above the tree line",
+      "date": "2026-05-14",
+      "demoLocation": "Mount Tabor Park",
+      "demoLocationNote": "Demonstration data only; this placeholder image was not taken at this location.",
+      "id": "ridge-trail",
+      "image": "sample_photos/ridge-trail.svg",
+      "lat": 45.5117,
+      "lon": -122.5947
+    },
+    {
+      "alt": "Illustrated campsite under a dark evening sky",
+      "caption": "Camp lights after sunset",
+      "date": "2026-05-15",
+      "demoLocation": "Powell Butte Nature Park",
+      "demoLocationNote": "Demonstration data only; this placeholder image was not taken at this location.",
+      "id": "camp-lights",
+      "image": "sample_photos/camp-lights.svg",
+      "lat": 45.4905,
+      "lon": -122.4971
+    },
+    {
+      "alt": "Illustrated river bend with trees and a walking path",
+      "caption": "River bend near the lunch stop",
+      "date": "2026-05-15",
+      "demoLocation": "Cathedral Park",
+      "demoLocationNote": "Demonstration data only; this placeholder image was not taken at this location.",
+      "id": "river-bend",
+      "image": "sample_photos/river-bend.svg",
+      "lat": 45.5884,
+      "lon": -122.7641
+    }
+  ],
+  "schemaVersion": 1
+}

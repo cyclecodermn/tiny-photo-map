@@ -1,5 +1,5 @@
 (function () {
-  const photos = window.tinyPhotoMapPhotos || [];
+  let photos = [];
   let selectedIndex = 0;
 
   const thumbnailList = document.getElementById("thumbnailList");
@@ -11,6 +11,7 @@
   const regionalCoordinates = document.getElementById("regionalCoordinates");
   const localCoordinates = document.getElementById("localCoordinates");
   const noDemoCoordinatesText = "No demonstration coordinates for this photo";
+  const catalogUrl = "photos.json";
   const regionalZoom = 10;
   const localZoom = 14;
   const maps = {
@@ -34,6 +35,10 @@
     return Number.isFinite(photo.lat) && Number.isFinite(photo.lon);
   }
 
+  function safeText(value, fallback) {
+    return typeof value === "string" && value.trim() ? value : fallback;
+  }
+
   function formatCoordinates(photo) {
     return `${photo.lat.toFixed(4)}, ${photo.lon.toFixed(4)}`;
   }
@@ -43,7 +48,19 @@
       return noDemoCoordinatesText;
     }
 
-    return `Demo location: ${photo.demoLocation} (${formatCoordinates(photo)})`;
+    return `Location: ${safeText(photo.demoLocation, "Photo coordinates")} (${formatCoordinates(photo)})`;
+  }
+
+  function showGalleryMessage(message) {
+    thumbnailList.textContent = "";
+    mainPhoto.removeAttribute("src");
+    mainPhoto.alt = "";
+    photoCaption.textContent = message;
+    photoDate.textContent = "";
+    regionalCoordinates.textContent = noDemoCoordinatesText;
+    localCoordinates.textContent = noDemoCoordinatesText;
+    previousPhoto.disabled = true;
+    nextPhoto.disabled = true;
   }
 
   function showMapFallback(mapState, message) {
@@ -65,6 +82,9 @@
 
   function updateMapMarkerState() {
     const photo = photos[selectedIndex];
+    if (!photo) {
+      return;
+    }
 
     Object.values(maps).forEach((mapState) => {
       if (!mapState.instance) {
@@ -76,7 +96,9 @@
         marker.setIcon(createMarkerIcon(isSelected));
 
         if (isSelected) {
-          marker.openPopup();
+          if (hasCoordinates(photo)) {
+            marker.openPopup();
+          }
         } else {
           marker.closePopup();
         }
@@ -115,9 +137,9 @@
     const photo = photos[selectedIndex];
 
     mainPhoto.src = photo.image;
-    mainPhoto.alt = photo.alt;
-    photoCaption.textContent = photo.caption;
-    photoDate.textContent = photo.date;
+    mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));
+    photoCaption.textContent = safeText(photo.caption, photo.image);
+    photoDate.textContent = safeText(photo.date, "Date unavailable");
     regionalCoordinates.textContent = formatDemoLocation(photo);
     localCoordinates.textContent = formatDemoLocation(photo);
     updateMapViews(photo);
@@ -130,7 +152,7 @@
       const button = document.createElement("button");
       button.className = "thumbnail-button";
       button.type = "button";
-      button.setAttribute("aria-label", photo.caption);
+      button.setAttribute("aria-label", safeText(photo.caption, photo.image));
       button.setAttribute("aria-pressed", "false");
       button.dataset.photoId = photo.id;
 
@@ -162,8 +184,8 @@
     const location = document.createElement("strong");
     const caption = document.createElement("span");
 
-    location.textContent = photo.demoLocation;
-    caption.textContent = photo.caption;
+    location.textContent = safeText(photo.demoLocation, "Photo coordinates");
+    caption.textContent = safeText(photo.caption, photo.image);
     wrapper.append(location, document.createElement("br"), caption);
 
     return wrapper;
@@ -179,7 +201,7 @@
         alt: formatDemoLocation(photo),
         keyboard: true,
         riseOnHover: true,
-        title: `${formatDemoLocation(photo)} - ${photo.demoLocationNote}`,
+        title: `${formatDemoLocation(photo)} - ${safeText(photo.demoLocationNote, "Photo location")}`,
         icon: createMarkerIcon(false)
       });
 
@@ -201,6 +223,9 @@
     const firstMappedPhoto = photos.find(hasCoordinates);
 
     if (!firstMappedPhoto) {
+      Object.values(maps).forEach((mapState) => {
+        showMapFallback(mapState, "No photo coordinates are available. The gallery remains available.");
+      });
       return;
     }
 
@@ -215,14 +240,74 @@
     });
   }
 
-  if (!photos.length) {
-    photoCaption.textContent = "No photos found";
-    return;
+  function normalizePhoto(rawPhoto, index) {
+    if (!rawPhoto || typeof rawPhoto !== "object" || Array.isArray(rawPhoto)) {
+      return null;
+    }
+
+    const image = safeText(rawPhoto.image, "");
+    if (!image) {
+      return null;
+    }
+
+    const photo = {
+      id: safeText(rawPhoto.id, `photo-${index + 1}`),
+      image,
+      caption: safeText(rawPhoto.caption, image),
+      alt: safeText(rawPhoto.alt, safeText(rawPhoto.caption, "Trip photo")),
+      date: safeText(rawPhoto.date, "Date unavailable")
+    };
+
+    for (const optionalField of ["demoLocation", "demoLocationNote"]) {
+      if (typeof rawPhoto[optionalField] === "string") {
+        photo[optionalField] = rawPhoto[optionalField];
+      }
+    }
+
+    if (Number.isFinite(rawPhoto.lat) && Number.isFinite(rawPhoto.lon)) {
+      photo.lat = rawPhoto.lat;
+      photo.lon = rawPhoto.lon;
+    }
+
+    return photo;
   }
 
-  buildThumbnails();
-  initializeMaps();
-  previousPhoto.addEventListener("click", () => selectPhoto(selectedIndex - 1));
-  nextPhoto.addEventListener("click", () => selectPhoto(selectedIndex + 1));
-  selectPhoto(0);
+  function parseCatalog(catalog) {
+    if (!catalog || typeof catalog !== "object" || !Array.isArray(catalog.photos)) {
+      throw new Error("photos.json must contain a photos array.");
+    }
+
+    return catalog.photos.map(normalizePhoto).filter(Boolean);
+  }
+
+  async function loadCatalog() {
+    const response = await fetch(catalogUrl, { cache: "no-cache" });
+    if (!response.ok) {
+      throw new Error(`photos.json returned HTTP ${response.status}.`);
+    }
+
+    return parseCatalog(await response.json());
+  }
+
+  async function initializeGallery() {
+    try {
+      photos = await loadCatalog();
+    } catch (error) {
+      showGalleryMessage(`Photo catalog could not load. ${error.message}`);
+      return;
+    }
+
+    if (!photos.length) {
+      showGalleryMessage("No photos found in the catalog.");
+      return;
+    }
+
+    buildThumbnails();
+    initializeMaps();
+    previousPhoto.addEventListener("click", () => selectPhoto(selectedIndex - 1));
+    nextPhoto.addEventListener("click", () => selectPhoto(selectedIndex + 1));
+    selectPhoto(0);
+  }
+
+  initializeGallery();
 })();

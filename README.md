@@ -22,7 +22,23 @@ https://hike.cyclewriter.com/pics/
 
 Approved changes to files under `public/` are live as soon as they are saved. There is no rsync step, deployment script, build command, or Git operation required for publishing.
 
-Open `public/index.html` in a browser to view the current static shell locally. It selects the first sample photo on load, supports thumbnail selection and previous/next arrows, and updates two Leaflet maps using manually supplied coordinates and OpenStreetMap tiles.
+Open `public/index.html` through a local static server to view the current static shell locally. It loads `public/photos.json`, selects the first sample photo on load, supports thumbnail selection and previous/next arrows, and updates two Leaflet maps using coordinates from the catalog.
+
+Refresh the generated JSON catalog after copying JPG or JPEG files into `public/sample_photos/`:
+
+```sh
+python scripts/refresh_photos.py
+```
+
+The generated catalog is `public/photos.json` with `schemaVersion: 1` and a `photos` array. Each photo record uses a relative `image` path, a stable `id`, caption, alt text, date when known, and optional `lat`/`lon` coordinates. Records sort by capture/manual date and then image path; photos without dates sort after dated photos.
+
+Edit `public/photo_overrides.json` for manual captions, corrected dates, coordinates, alt text, and demo SVG metadata. The refresh command never rewrites the override file.
+
+Preview changes without replacing the live catalog:
+
+```sh
+python scripts/refresh_photos.py --check
+```
 
 Run the focused local check with:
 
@@ -34,6 +50,8 @@ python -m unittest tests/test_static_gallery.py
 
 - `public/` — live static site source served at `/pics/`
 - `public/sample_photos/` — public sample images used by the live gallery
+- `public/photo_overrides.json` — human-edited captions and corrected/manual metadata
+- `public/photos.json` — generated machine-readable catalog
 - `gallery/` — original development copy retained for reference
 - `sample_photos/` — original sample images retained for reference
 - `scripts/` — small build or validation helpers

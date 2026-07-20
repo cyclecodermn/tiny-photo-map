@@ -1,4 +1,5 @@
 from html.parser import HTMLParser
+import json
 from pathlib import Path
 import re
 import unittest
@@ -33,7 +34,7 @@ class StaticGalleryTest(unittest.TestCase):
         self.assertEqual(parser.links, ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css"])
         self.assertEqual(
             parser.scripts,
-            ["photos.js", "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js"],
         )
         for element_id in {
             "thumbnailList",
@@ -49,19 +50,22 @@ class StaticGalleryTest(unittest.TestCase):
             self.assertIn(element_id, parser.ids)
 
     def test_photo_data_uses_local_samples_with_portland_demo_coordinates(self):
-        photo_data = (PUBLIC / "photos.js").read_text(encoding="utf-8")
-        ids = re.findall(r'id: "([^"]+)"', photo_data)
-        images = re.findall(r'image: "([^"]+)"', photo_data)
-        coordinates = re.findall(r"lat: (-?\d+\.\d+),\n    lon: (-?\d+\.\d+)", photo_data)
-        demo_locations = re.findall(r'demoLocation: "([^"]+)"', photo_data)
+        catalog = json.loads((PUBLIC / "photos.json").read_text(encoding="utf-8"))
+        photos = catalog["photos"]
+        ids = [photo["id"] for photo in photos]
+        images = [photo["image"] for photo in photos]
+        coordinates = [(photo["lat"], photo["lon"]) for photo in photos]
+        demo_locations = [photo["demoLocation"] for photo in photos]
+        photo_data = json.dumps(catalog)
 
+        self.assertEqual(catalog["schemaVersion"], 1)
         self.assertEqual(len(ids), 4)
         self.assertEqual(len(images), len(ids))
         self.assertEqual(len(coordinates), len(ids))
         self.assertEqual(len(demo_locations), len(ids))
-        self.assertIn(("45.4659", "-122.6630"), coordinates)
-        self.assertIn(("45.5117", "-122.5947"), coordinates)
-        self.assertIn(("45.5884", "-122.7641"), coordinates)
+        self.assertIn((45.4659, -122.663), coordinates)
+        self.assertIn((45.5117, -122.5947), coordinates)
+        self.assertIn((45.5884, -122.7641), coordinates)
         self.assertIn("Sellwood Riverfront Park", demo_locations)
         self.assertIn("Mount Tabor Park", demo_locations)
         self.assertIn("Cathedral Park", demo_locations)
@@ -77,7 +81,8 @@ class StaticGalleryTest(unittest.TestCase):
         for asset in {
             "index.html",
             "styles.css",
-            "photos.js",
+            "photos.json",
+            "photo_overrides.json",
             "app.js",
             "sample_photos/harbor-overlook.svg",
             "sample_photos/ridge-trail.svg",
@@ -86,13 +91,16 @@ class StaticGalleryTest(unittest.TestCase):
         }:
             self.assertTrue((PUBLIC / asset).is_file(), asset)
 
-        photo_data = (PUBLIC / "photos.js").read_text(encoding="utf-8")
+        photo_data = (PUBLIC / "photos.json").read_text(encoding="utf-8")
         self.assertNotIn("../sample_photos/", photo_data)
 
     def test_first_photo_is_selected_on_load(self):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("selectPhoto(0);", app)
+        self.assertIn('const catalogUrl = "photos.json";', app)
+        self.assertIn("await fetch(catalogUrl", app)
+        self.assertNotIn("window.tinyPhotoMapPhotos", app)
         self.assertIn('button.addEventListener("click", () => selectPhoto(index));', app)
         self.assertIn('previousPhoto.addEventListener("click"', app)
         self.assertIn('nextPhoto.addEventListener("click"', app)
@@ -102,9 +110,9 @@ class StaticGalleryTest(unittest.TestCase):
 
         for expected in {
             "mainPhoto.src = photo.image;",
-            "mainPhoto.alt = photo.alt;",
-            "photoCaption.textContent = photo.caption;",
-            "photoDate.textContent = photo.date;",
+            'mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));',
+            "photoCaption.textContent = safeText(photo.caption, photo.image);",
+            'photoDate.textContent = safeText(photo.date, "Date unavailable");',
             "regionalCoordinates.textContent = formatDemoLocation(photo);",
             "localCoordinates.textContent = formatDemoLocation(photo);",
             "updateMapViews(photo);",
@@ -135,7 +143,7 @@ class StaticGalleryTest(unittest.TestCase):
     def test_old_illustrated_mock_map_is_absent(self):
         public_text = "\n".join(
             (PUBLIC / name).read_text(encoding="utf-8")
-            for name in {"index.html", "styles.css", "photos.js", "app.js"}
+            for name in {"index.html", "styles.css", "photos.json", "app.js"}
         )
 
         for old_mock_map_marker in {
@@ -181,6 +189,20 @@ class StaticGalleryTest(unittest.TestCase):
             "if (!hasCoordinates(photo)) {",
             "const firstMappedPhoto = photos.find(hasCoordinates);",
             "if (!firstMappedPhoto) {",
+            "No photo coordinates are available. The gallery remains available.",
+        }:
+            self.assertIn(expected, app)
+
+    def test_catalog_load_failures_show_useful_gallery_messages(self):
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            "function showGalleryMessage(message)",
+            "Photo catalog could not load.",
+            "photos.json must contain a photos array.",
+            "No photos found in the catalog.",
+            "previousPhoto.disabled = true;",
+            "nextPhoto.disabled = true;",
         }:
             self.assertIn(expected, app)
 
