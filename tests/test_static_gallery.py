@@ -31,16 +31,19 @@ class StaticGalleryTest(unittest.TestCase):
         parser = GalleryParser()
         parser.feed((GALLERY / "index.html").read_text(encoding="utf-8"))
 
-        self.assertEqual(parser.links, ["styles.css"])
-        self.assertEqual(parser.scripts, ["photos.js", "app.js"])
+        self.assertEqual(parser.links, ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css"])
+        self.assertEqual(
+            parser.scripts,
+            ["photos.js", "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js"],
+        )
         for element_id in {
             "thumbnailList",
             "previousPhoto",
             "nextPhoto",
             "mainPhoto",
             "photoCaption",
-            "regionalMarker",
-            "localMarker",
+            "regionalMap",
+            "localMap",
             "regionalCoordinates",
             "localCoordinates",
         }:
@@ -65,6 +68,8 @@ class StaticGalleryTest(unittest.TestCase):
         self.assertIn("Cathedral Park", demo_locations)
         self.assertIn("Demonstration data only", photo_data)
         self.assertNotIn("Three Sisters", photo_data)
+        self.assertNotIn("regionalPosition", photo_data)
+        self.assertNotIn("localPosition", photo_data)
         for image in images:
             self.assertTrue(image.startswith("../sample_photos/"))
             self.assertTrue((GALLERY / image).resolve().is_file())
@@ -87,23 +92,54 @@ class StaticGalleryTest(unittest.TestCase):
             "photoDate.textContent = photo.date;",
             "regionalCoordinates.textContent = formatDemoLocation(photo);",
             "localCoordinates.textContent = formatDemoLocation(photo);",
+            "updateMapViews(photo);",
             "updateMapMarkerState();",
             'button.classList.toggle("is-selected", isSelected);',
             'button.setAttribute("aria-current", isSelected ? "true" : "false");',
-            'marker.classList.toggle("is-selected", isSelected);',
+            "marker.setIcon(createMarkerIcon(isSelected));",
+            "marker.openPopup();",
         }:
             self.assertIn(expected, app)
 
-    def test_map_markers_are_rendered_and_select_matching_photos(self):
+    def test_leaflet_maps_use_openstreetmap_tiles_and_attribution(self):
         app = (GALLERY / "app.js").read_text(encoding="utf-8")
 
         for expected in {
-            'buildMapMarkers(regionalMarker, "regionalPosition");',
-            'buildMapMarkers(localMarker, "localPosition");',
-            'marker.className = "map-marker";',
-            "marker.dataset.photoId = photo.id;",
-            'marker.addEventListener("click", () => selectPhoto(index));',
-            "moveMarker(marker, position);",
+            'L.map(mapState.elementId, {',
+            'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {',
+            "maxZoom: 19,",
+            "OpenStreetMap",
+            'https://www.openstreetmap.org/copyright',
+            "tiles.on(\"tileerror\", () => {",
+            "tiles.addTo(mapState.instance);",
+            "scrollWheelZoom: false",
+            "setTimeout(() => mapState.instance.invalidateSize(), 0);",
+        }:
+            self.assertIn(expected, app)
+
+    def test_both_map_instances_have_fixed_zoom_levels(self):
+        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            "const regionalZoom = 10;",
+            "const localZoom = 14;",
+            'elementId: "regionalMap",',
+            'elementId: "localMap",',
+            "mapState.instance.setView(latLng, mapState.zoom);",
+        }:
+            self.assertIn(expected, app)
+
+    def test_leaflet_markers_are_rendered_and_select_matching_photos(self):
+        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            "function buildMapMarkers(mapState)",
+            "const marker = L.marker([photo.lat, photo.lon], {",
+            "keyboard: true,",
+            "icon: createMarkerIcon(false)",
+            'marker.on("click", () => selectPhoto(index));',
+            "marker.addTo(mapState.instance);",
+            "mapState.markers.set(photo.id, marker);",
         }:
             self.assertIn(expected, app)
 
@@ -115,9 +151,23 @@ class StaticGalleryTest(unittest.TestCase):
             "return Number.isFinite(photo.lat) && Number.isFinite(photo.lon);",
             'const noDemoCoordinatesText = "No demonstration coordinates for this photo";',
             "if (!hasCoordinates(photo)) {",
-            "if (!hasCoordinates(photo) || !position) {",
+            "const firstMappedPhoto = photos.find(hasCoordinates);",
+            "if (!firstMappedPhoto) {",
         }:
             self.assertIn(expected, app)
+
+    def test_map_fallbacks_are_visible_without_breaking_gallery(self):
+        html = (GALLERY / "index.html").read_text(encoding="utf-8")
+        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            'class="map-fallback" data-map-fallback="regional" hidden',
+            'class="map-fallback" data-map-fallback="local" hidden',
+            "Map library could not load. The gallery and selected photo details remain available.",
+            "Map tiles could not load. The gallery and selected photo details remain available.",
+            "if (!window.L) {",
+        }:
+            self.assertTrue(expected in html or expected in app)
 
     def test_selected_photo_fills_frame_without_cropping(self):
         styles = (GALLERY / "styles.css").read_text(encoding="utf-8")

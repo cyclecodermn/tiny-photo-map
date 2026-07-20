@@ -14,7 +14,7 @@ The first milestone is one local static gallery using local sample images and ma
 
 ## Local gallery
 
-Open `gallery/index.html` in a browser to view the current static shell. It selects the first sample photo on load, supports thumbnail selection and previous/next arrows, and updates two fixed map-style panels using manually supplied coordinates.
+Open `gallery/index.html` in a browser to view the current static shell. It selects the first sample photo on load, supports thumbnail selection and previous/next arrows, and updates two Leaflet maps using manually supplied coordinates and OpenStreetMap tiles.
 
 Run the focused local check with:
 

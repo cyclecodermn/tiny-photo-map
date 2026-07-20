@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Tiny Photo Map</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -41,8 +42,8 @@
             <h2 id="regionalMapTitle">Regional map</h2>
             <p id="regionalCoordinates"></p>
           </header>
-          <div class="map-canvas regional-map">
-            <div id="regionalMarker" class="map-marker-layer" aria-label="Regional demonstration location markers"></div>
+          <div id="regionalMap" class="map-canvas regional-map" role="application" aria-label="Regional demonstration location map">
+            <p class="map-fallback" data-map-fallback="regional" hidden>Map tiles could not load. The gallery and selected photo details remain available.</p>
           </div>
         </section>
         <section class="map-card" aria-labelledby="localMapTitle">
@@ -50,14 +51,15 @@
             <h2 id="localMapTitle">Local map</h2>
             <p id="localCoordinates"></p>
           </header>
-          <div class="map-canvas local-map">
-            <div id="localMarker" class="map-marker-layer" aria-label="Local demonstration location markers"></div>
+          <div id="localMap" class="map-canvas local-map" role="application" aria-label="Local demonstration location map">
+            <p class="map-fallback" data-map-fallback="local" hidden>Map tiles could not load. The gallery and selected photo details remain available.</p>
           </div>
         </section>
       </aside>
     </main>
 
     <script src="photos.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

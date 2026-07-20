@@ -8,9 +8,7 @@ window.tinyPhotoMapPhotos = [
     demoLocation: "Sellwood Riverfront Park",
     demoLocationNote: "Demonstration data only; this placeholder image was not taken at this location.",
     lat: 45.4659,
-    lon: -122.6630,
-    regionalPosition: { x: 52, y: 76 },
-    localPosition: { x: 48, y: 58 }
+    lon: -122.6630
   },
   {
     id: "ridge-trail",
@@ -21,9 +19,7 @@ window.tinyPhotoMapPhotos = [
     demoLocation: "Mount Tabor Park",
     demoLocationNote: "Demonstration data only; this placeholder image was not taken at this location.",
     lat: 45.5117,
-    lon: -122.5947,
-    regionalPosition: { x: 76, y: 56 },
-    localPosition: { x: 57, y: 45 }
+    lon: -122.5947
   },
   {
     id: "river-bend",
@@ -34,9 +30,7 @@ window.tinyPhotoMapPhotos = [
     demoLocation: "Cathedral Park",
     demoLocationNote: "Demonstration data only; this placeholder image was not taken at this location.",
     lat: 45.5884,
-    lon: -122.7641,
-    regionalPosition: { x: 20, y: 22 },
-    localPosition: { x: 43, y: 52 }
+    lon: -122.7641
   },
   {
     id: "camp-lights",
@@ -47,8 +41,6 @@ window.tinyPhotoMapPhotos = [
     demoLocation: "Powell Butte Nature Park",
     demoLocationNote: "Demonstration data only; this placeholder image was not taken at this location.",
     lat: 45.4905,
-    lon: -122.4971,
-    regionalPosition: { x: 90, y: 70 },
-    localPosition: { x: 61, y: 62 }
+    lon: -122.4971
   }
 ];
