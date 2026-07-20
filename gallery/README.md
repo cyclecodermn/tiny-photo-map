@@ -1,8 +1,10 @@
 # Gallery
 
-This folder contains the first static Tiny Photo Map gallery shell.
+This folder contains the first static Tiny Photo Map gallery shell and is retained as a development reference.
 
-Open `index.html` in a browser to view the local sample trip. The page is build-free and uses:
+The live source of truth is `../public/`, which Caddy serves directly at `/pics/`.
+
+Open `../public/index.html` in a browser to view the local sample trip. The page is build-free and uses:
 
 - `index.html` for the three-column shell
 - `styles.css` for the fixed gallery layout

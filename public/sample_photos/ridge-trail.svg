@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">Ridge trail</title>
+  <desc id="desc">A stylized trail crossing green hills above the tree line.</desc>
+  <rect width="1200" height="800" fill="#c9d7ef"/>
+  <path d="M0 365c136-51 275-49 417 8 174 70 341 55 501-46 105-67 199-95 282-84v557H0z" fill="#527853"/>
+  <path d="M0 470c165-60 327-55 486 15 153 67 300 62 440-14 101-54 192-70 274-48v377H0z" fill="#789461"/>
+  <path d="M278 800c62-142 149-250 262-324 113-75 254-117 422-127-168 51-300 117-396 199-96 81-160 165-190 252z" fill="#e7e0c5"/>
+  <path d="M0 618l187-98 136 80 146-112 169 96 169-126 193 106 200-93v329H0z" fill="#2f5f5b"/>
+  <circle cx="182" cy="142" r="42" fill="#f97316"/>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">Camp lights</title>
+  <desc id="desc">A stylized campsite under a dark evening sky.</desc>
+  <rect width="1200" height="800" fill="#24324f"/>
+  <g fill="#fef3c7">
+    <circle cx="172" cy="132" r="5"/>
+    <circle cx="318" cy="205" r="4"/>
+    <circle cx="503" cy="96" r="6"/>
+    <circle cx="782" cy="165" r="5"/>
+    <circle cx="1035" cy="118" r="4"/>
+  </g>
+  <path d="M0 506c152-74 305-84 458-30 164 58 315 43 453-44 110-70 206-85 289-47v415H0z" fill="#294c44"/>
+  <path d="M0 648c121-53 238-66 351-38 129 32 239 18 329-43 113-75 286-91 520-47v280H0z" fill="#1f3f38"/>
+  <path d="M456 664l116-142 132 142z" fill="#c2410c"/>
+  <path d="M512 664l69-84 78 84z" fill="#f59e0b"/>
+  <path d="M280 641c88-36 178-36 270 0" fill="none" stroke="#fcd34d" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="606" cy="686" r="28" fill="#facc15"/>
+</svg>

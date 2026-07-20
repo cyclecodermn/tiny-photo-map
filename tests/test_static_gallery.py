@@ -5,8 +5,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GALLERY = ROOT / "gallery"
-SAMPLES = ROOT / "sample_photos"
+PUBLIC = ROOT / "public"
 
 
 class GalleryParser(HTMLParser):
@@ -29,7 +28,7 @@ class GalleryParser(HTMLParser):
 class StaticGalleryTest(unittest.TestCase):
     def test_shell_has_expected_static_assets_and_controls(self):
         parser = GalleryParser()
-        parser.feed((GALLERY / "index.html").read_text(encoding="utf-8"))
+        parser.feed((PUBLIC / "index.html").read_text(encoding="utf-8"))
 
         self.assertEqual(parser.links, ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css"])
         self.assertEqual(
@@ -50,7 +49,7 @@ class StaticGalleryTest(unittest.TestCase):
             self.assertIn(element_id, parser.ids)
 
     def test_photo_data_uses_local_samples_with_portland_demo_coordinates(self):
-        photo_data = (GALLERY / "photos.js").read_text(encoding="utf-8")
+        photo_data = (PUBLIC / "photos.js").read_text(encoding="utf-8")
         ids = re.findall(r'id: "([^"]+)"', photo_data)
         images = re.findall(r'image: "([^"]+)"', photo_data)
         coordinates = re.findall(r"lat: (-?\d+\.\d+),\n    lon: (-?\d+\.\d+)", photo_data)
@@ -71,11 +70,27 @@ class StaticGalleryTest(unittest.TestCase):
         self.assertNotIn("regionalPosition", photo_data)
         self.assertNotIn("localPosition", photo_data)
         for image in images:
-            self.assertTrue(image.startswith("../sample_photos/"))
-            self.assertTrue((GALLERY / image).resolve().is_file())
+            self.assertTrue(image.startswith("sample_photos/"))
+            self.assertTrue((PUBLIC / image).resolve().is_file())
+
+    def test_public_site_is_self_contained(self):
+        for asset in {
+            "index.html",
+            "styles.css",
+            "photos.js",
+            "app.js",
+            "sample_photos/harbor-overlook.svg",
+            "sample_photos/ridge-trail.svg",
+            "sample_photos/river-bend.svg",
+            "sample_photos/camp-lights.svg",
+        }:
+            self.assertTrue((PUBLIC / asset).is_file(), asset)
+
+        photo_data = (PUBLIC / "photos.js").read_text(encoding="utf-8")
+        self.assertNotIn("../sample_photos/", photo_data)
 
     def test_first_photo_is_selected_on_load(self):
-        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("selectPhoto(0);", app)
         self.assertIn('button.addEventListener("click", () => selectPhoto(index));', app)
@@ -83,7 +98,7 @@ class StaticGalleryTest(unittest.TestCase):
         self.assertIn('nextPhoto.addEventListener("click"', app)
 
     def test_selection_updates_photo_thumbnail_and_map_state(self):
-        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         for expected in {
             "mainPhoto.src = photo.image;",
@@ -102,7 +117,7 @@ class StaticGalleryTest(unittest.TestCase):
             self.assertIn(expected, app)
 
     def test_leaflet_maps_use_openstreetmap_tiles_and_attribution(self):
-        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         for expected in {
             'L.map(mapState.elementId, {',
@@ -117,8 +132,21 @@ class StaticGalleryTest(unittest.TestCase):
         }:
             self.assertIn(expected, app)
 
+    def test_old_illustrated_mock_map_is_absent(self):
+        public_text = "\n".join(
+            (PUBLIC / name).read_text(encoding="utf-8")
+            for name in {"index.html", "styles.css", "photos.js", "app.js"}
+        )
+
+        for old_mock_map_marker in {
+            "mock-map",
+            "regionalPosition",
+            "localPosition",
+        }:
+            self.assertNotIn(old_mock_map_marker, public_text)
+
     def test_both_map_instances_have_fixed_zoom_levels(self):
-        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         for expected in {
             "const regionalZoom = 10;",
@@ -130,7 +158,7 @@ class StaticGalleryTest(unittest.TestCase):
             self.assertIn(expected, app)
 
     def test_leaflet_markers_are_rendered_and_select_matching_photos(self):
-        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         for expected in {
             "function buildMapMarkers(mapState)",
@@ -144,7 +172,7 @@ class StaticGalleryTest(unittest.TestCase):
             self.assertIn(expected, app)
 
     def test_photos_without_coordinates_are_supported(self):
-        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         for expected in {
             "function hasCoordinates(photo)",
@@ -157,8 +185,8 @@ class StaticGalleryTest(unittest.TestCase):
             self.assertIn(expected, app)
 
     def test_map_fallbacks_are_visible_without_breaking_gallery(self):
-        html = (GALLERY / "index.html").read_text(encoding="utf-8")
-        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+        html = (PUBLIC / "index.html").read_text(encoding="utf-8")
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         for expected in {
             'class="map-fallback" data-map-fallback="regional" hidden',
@@ -170,7 +198,7 @@ class StaticGalleryTest(unittest.TestCase):
             self.assertTrue(expected in html or expected in app)
 
     def test_selected_photo_fills_frame_without_cropping(self):
-        styles = (GALLERY / "styles.css").read_text(encoding="utf-8")
+        styles = (PUBLIC / "styles.css").read_text(encoding="utf-8")
 
         image_rule = re.search(r"\.photo-frame img \{(?P<body>[^}]+)\}", styles)
         self.assertIsNotNone(image_rule)
