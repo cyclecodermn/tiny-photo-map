@@ -22,6 +22,21 @@
     marker.style.top = `${position.y}%`;
   }
 
+  function updateMarker(marker, position, photo) {
+    moveMarker(marker, position);
+    marker.dataset.photoId = photo.id;
+    marker.setAttribute("title", `${photo.caption} (${formatCoordinates(photo)})`);
+  }
+
+  function updateSelectedThumbnail() {
+    document.querySelectorAll(".thumbnail-button").forEach((button, buttonIndex) => {
+      const isSelected = buttonIndex === selectedIndex;
+      button.classList.toggle("is-selected", isSelected);
+      button.setAttribute("aria-current", isSelected ? "true" : "false");
+      button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    });
+  }
+
   function selectPhoto(index) {
     selectedIndex = (index + photos.length) % photos.length;
     const photo = photos[selectedIndex];
@@ -32,14 +47,9 @@
     photoDate.textContent = photo.date;
     regionalCoordinates.textContent = formatCoordinates(photo);
     localCoordinates.textContent = formatCoordinates(photo);
-    moveMarker(regionalMarker, photo.regionalPosition);
-    moveMarker(localMarker, photo.localPosition);
-
-    document.querySelectorAll(".thumbnail-button").forEach((button, buttonIndex) => {
-      const isSelected = buttonIndex === selectedIndex;
-      button.classList.toggle("is-selected", isSelected);
-      button.setAttribute("aria-current", isSelected ? "true" : "false");
-    });
+    updateMarker(regionalMarker, photo.regionalPosition, photo);
+    updateMarker(localMarker, photo.localPosition, photo);
+    updateSelectedThumbnail();
   }
 
   function buildThumbnails() {
@@ -48,6 +58,8 @@
       button.className = "thumbnail-button";
       button.type = "button";
       button.setAttribute("aria-label", photo.caption);
+      button.setAttribute("aria-pressed", "false");
+      button.dataset.photoId = photo.id;
 
       const image = document.createElement("img");
       image.src = photo.image;

@@ -65,6 +65,23 @@ class StaticGalleryTest(unittest.TestCase):
         self.assertIn('previousPhoto.addEventListener("click"', app)
         self.assertIn('nextPhoto.addEventListener("click"', app)
 
+    def test_selection_updates_photo_thumbnail_and_map_state(self):
+        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            "mainPhoto.src = photo.image;",
+            "mainPhoto.alt = photo.alt;",
+            "photoCaption.textContent = photo.caption;",
+            "photoDate.textContent = photo.date;",
+            "regionalCoordinates.textContent = formatCoordinates(photo);",
+            "localCoordinates.textContent = formatCoordinates(photo);",
+            "updateMarker(regionalMarker, photo.regionalPosition, photo);",
+            "updateMarker(localMarker, photo.localPosition, photo);",
+            'button.classList.toggle("is-selected", isSelected);',
+            'button.setAttribute("aria-current", isSelected ? "true" : "false");',
+        }:
+            self.assertIn(expected, app)
+
 
 if __name__ == "__main__":
     unittest.main()
