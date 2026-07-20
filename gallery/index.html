@@ -10,9 +10,9 @@
     <main class="gallery-shell" aria-label="Tiny Photo Map gallery">
       <aside class="trip-panel" aria-label="Trip photos">
         <header class="trip-summary">
-          <p class="eyebrow">Sample trip</p>
-          <h1>Coast Ridge Loop</h1>
-          <p>Four local development photos with hand-entered map points.</p>
+          <p class="eyebrow">Static demo gallery</p>
+          <h1>Portland Demo Locations</h1>
+          <p>Placeholder photos with clearly labeled demonstration coordinates at public Portland locations.</p>
         </header>
         <div id="thumbnailList" class="thumbnail-list" aria-label="Photo thumbnails"></div>
       </aside>
@@ -42,7 +42,7 @@
             <p id="regionalCoordinates"></p>
           </header>
           <div class="map-canvas regional-map">
-            <div id="regionalMarker" class="map-marker" aria-hidden="true"></div>
+            <div id="regionalMarker" class="map-marker-layer" aria-label="Regional demonstration location markers"></div>
           </div>
         </section>
         <section class="map-card" aria-labelledby="localMapTitle">
@@ -51,7 +51,7 @@
             <p id="localCoordinates"></p>
           </header>
           <div class="map-canvas local-map">
-            <div id="localMarker" class="map-marker" aria-hidden="true"></div>
+            <div id="localMarker" class="map-marker-layer" aria-label="Local demonstration location markers"></div>
           </div>
         </section>
       </aside>

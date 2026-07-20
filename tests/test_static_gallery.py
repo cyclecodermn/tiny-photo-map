@@ -41,18 +41,30 @@ class StaticGalleryTest(unittest.TestCase):
             "photoCaption",
             "regionalMarker",
             "localMarker",
+            "regionalCoordinates",
+            "localCoordinates",
         }:
             self.assertIn(element_id, parser.ids)
 
-    def test_photo_data_uses_local_samples_with_manual_coordinates(self):
+    def test_photo_data_uses_local_samples_with_portland_demo_coordinates(self):
         photo_data = (GALLERY / "photos.js").read_text(encoding="utf-8")
         ids = re.findall(r'id: "([^"]+)"', photo_data)
         images = re.findall(r'image: "([^"]+)"', photo_data)
         coordinates = re.findall(r"lat: (-?\d+\.\d+),\n    lon: (-?\d+\.\d+)", photo_data)
+        demo_locations = re.findall(r'demoLocation: "([^"]+)"', photo_data)
 
         self.assertEqual(len(ids), 4)
         self.assertEqual(len(images), len(ids))
         self.assertEqual(len(coordinates), len(ids))
+        self.assertEqual(len(demo_locations), len(ids))
+        self.assertIn(("45.4659", "-122.6630"), coordinates)
+        self.assertIn(("45.5117", "-122.5947"), coordinates)
+        self.assertIn(("45.5884", "-122.7641"), coordinates)
+        self.assertIn("Sellwood Riverfront Park", demo_locations)
+        self.assertIn("Mount Tabor Park", demo_locations)
+        self.assertIn("Cathedral Park", demo_locations)
+        self.assertIn("Demonstration data only", photo_data)
+        self.assertNotIn("Three Sisters", photo_data)
         for image in images:
             self.assertTrue(image.startswith("../sample_photos/"))
             self.assertTrue((GALLERY / image).resolve().is_file())
@@ -73,12 +85,37 @@ class StaticGalleryTest(unittest.TestCase):
             "mainPhoto.alt = photo.alt;",
             "photoCaption.textContent = photo.caption;",
             "photoDate.textContent = photo.date;",
-            "regionalCoordinates.textContent = formatCoordinates(photo);",
-            "localCoordinates.textContent = formatCoordinates(photo);",
-            "updateMarker(regionalMarker, photo.regionalPosition, photo);",
-            "updateMarker(localMarker, photo.localPosition, photo);",
+            "regionalCoordinates.textContent = formatDemoLocation(photo);",
+            "localCoordinates.textContent = formatDemoLocation(photo);",
+            "updateMapMarkerState();",
             'button.classList.toggle("is-selected", isSelected);',
             'button.setAttribute("aria-current", isSelected ? "true" : "false");',
+            'marker.classList.toggle("is-selected", isSelected);',
+        }:
+            self.assertIn(expected, app)
+
+    def test_map_markers_are_rendered_and_select_matching_photos(self):
+        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            'buildMapMarkers(regionalMarker, "regionalPosition");',
+            'buildMapMarkers(localMarker, "localPosition");',
+            'marker.className = "map-marker";',
+            "marker.dataset.photoId = photo.id;",
+            'marker.addEventListener("click", () => selectPhoto(index));',
+            "moveMarker(marker, position);",
+        }:
+            self.assertIn(expected, app)
+
+    def test_photos_without_coordinates_are_supported(self):
+        app = (GALLERY / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            "function hasCoordinates(photo)",
+            "return Number.isFinite(photo.lat) && Number.isFinite(photo.lon);",
+            'const noDemoCoordinatesText = "No demonstration coordinates for this photo";',
+            "if (!hasCoordinates(photo)) {",
+            "if (!hasCoordinates(photo) || !position) {",
         }:
             self.assertIn(expected, app)
 

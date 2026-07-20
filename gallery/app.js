@@ -12,9 +12,22 @@
   const localCoordinates = document.getElementById("localCoordinates");
   const regionalMarker = document.getElementById("regionalMarker");
   const localMarker = document.getElementById("localMarker");
+  const noDemoCoordinatesText = "No demonstration coordinates for this photo";
+
+  function hasCoordinates(photo) {
+    return Number.isFinite(photo.lat) && Number.isFinite(photo.lon);
+  }
 
   function formatCoordinates(photo) {
-    return `${photo.lat.toFixed(3)}, ${photo.lon.toFixed(3)}`;
+    return `${photo.lat.toFixed(4)}, ${photo.lon.toFixed(4)}`;
+  }
+
+  function formatDemoLocation(photo) {
+    if (!hasCoordinates(photo)) {
+      return noDemoCoordinatesText;
+    }
+
+    return `Demo location: ${photo.demoLocation} (${formatCoordinates(photo)})`;
   }
 
   function moveMarker(marker, position) {
@@ -22,10 +35,12 @@
     marker.style.top = `${position.y}%`;
   }
 
-  function updateMarker(marker, position, photo) {
-    moveMarker(marker, position);
-    marker.dataset.photoId = photo.id;
-    marker.setAttribute("title", `${photo.caption} (${formatCoordinates(photo)})`);
+  function updateMapMarkerState() {
+    document.querySelectorAll(".map-marker").forEach((marker) => {
+      const isSelected = marker.dataset.photoId === photos[selectedIndex].id;
+      marker.classList.toggle("is-selected", isSelected);
+      marker.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    });
   }
 
   function updateSelectedThumbnail() {
@@ -45,10 +60,9 @@
     mainPhoto.alt = photo.alt;
     photoCaption.textContent = photo.caption;
     photoDate.textContent = photo.date;
-    regionalCoordinates.textContent = formatCoordinates(photo);
-    localCoordinates.textContent = formatCoordinates(photo);
-    updateMarker(regionalMarker, photo.regionalPosition, photo);
-    updateMarker(localMarker, photo.localPosition, photo);
+    regionalCoordinates.textContent = formatDemoLocation(photo);
+    localCoordinates.textContent = formatDemoLocation(photo);
+    updateMapMarkerState();
     updateSelectedThumbnail();
   }
 
@@ -71,12 +85,35 @@
     });
   }
 
+  function buildMapMarkers(markerLayer, positionKey) {
+    photos.forEach((photo, index) => {
+      const position = photo[positionKey];
+
+      if (!hasCoordinates(photo) || !position) {
+        return;
+      }
+
+      const marker = document.createElement("button");
+      marker.className = "map-marker";
+      marker.type = "button";
+      marker.dataset.photoId = photo.id;
+      marker.setAttribute("aria-label", `${formatDemoLocation(photo)}. Select ${photo.caption}.`);
+      marker.setAttribute("aria-pressed", "false");
+      marker.setAttribute("title", `${formatDemoLocation(photo)} - ${photo.demoLocationNote}`);
+      moveMarker(marker, position);
+      marker.addEventListener("click", () => selectPhoto(index));
+      markerLayer.appendChild(marker);
+    });
+  }
+
   if (!photos.length) {
     photoCaption.textContent = "No photos found";
     return;
   }
 
   buildThumbnails();
+  buildMapMarkers(regionalMarker, "regionalPosition");
+  buildMapMarkers(localMarker, "localPosition");
   previousPhoto.addEventListener("click", () => selectPhoto(selectedIndex - 1));
   nextPhoto.addEventListener("click", () => selectPhoto(selectedIndex + 1));
   selectPhoto(0);

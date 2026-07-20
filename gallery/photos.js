@@ -5,10 +5,12 @@ window.tinyPhotoMapPhotos = [
     date: "2026-05-14",
     image: "../sample_photos/harbor-overlook.svg",
     alt: "Illustrated coastal overlook with a harbor below",
-    lat: 45.538,
-    lon: -122.689,
-    regionalPosition: { x: 35, y: 48 },
-    localPosition: { x: 42, y: 56 }
+    demoLocation: "Sellwood Riverfront Park",
+    demoLocationNote: "Demonstration data only; this placeholder image was not taken at this location.",
+    lat: 45.4659,
+    lon: -122.6630,
+    regionalPosition: { x: 52, y: 76 },
+    localPosition: { x: 48, y: 58 }
   },
   {
     id: "ridge-trail",
@@ -16,10 +18,12 @@ window.tinyPhotoMapPhotos = [
     date: "2026-05-14",
     image: "../sample_photos/ridge-trail.svg",
     alt: "Illustrated ridge trail crossing green hills",
-    lat: 45.557,
-    lon: -122.642,
-    regionalPosition: { x: 56, y: 35 },
-    localPosition: { x: 58, y: 42 }
+    demoLocation: "Mount Tabor Park",
+    demoLocationNote: "Demonstration data only; this placeholder image was not taken at this location.",
+    lat: 45.5117,
+    lon: -122.5947,
+    regionalPosition: { x: 76, y: 56 },
+    localPosition: { x: 57, y: 45 }
   },
   {
     id: "river-bend",
@@ -27,10 +31,12 @@ window.tinyPhotoMapPhotos = [
     date: "2026-05-15",
     image: "../sample_photos/river-bend.svg",
     alt: "Illustrated river bend with trees and a walking path",
-    lat: 45.521,
-    lon: -122.606,
-    regionalPosition: { x: 72, y: 62 },
-    localPosition: { x: 67, y: 61 }
+    demoLocation: "Cathedral Park",
+    demoLocationNote: "Demonstration data only; this placeholder image was not taken at this location.",
+    lat: 45.5884,
+    lon: -122.7641,
+    regionalPosition: { x: 20, y: 22 },
+    localPosition: { x: 43, y: 52 }
   },
   {
     id: "camp-lights",
@@ -38,9 +44,11 @@ window.tinyPhotoMapPhotos = [
     date: "2026-05-15",
     image: "../sample_photos/camp-lights.svg",
     alt: "Illustrated campsite under a dark evening sky",
-    lat: 45.493,
-    lon: -122.654,
-    regionalPosition: { x: 49, y: 76 },
-    localPosition: { x: 45, y: 68 }
+    demoLocation: "Powell Butte Nature Park",
+    demoLocationNote: "Demonstration data only; this placeholder image was not taken at this location.",
+    lat: 45.4905,
+    lon: -122.4971,
+    regionalPosition: { x: 90, y: 70 },
+    localPosition: { x: 61, y: 62 }
   }
 ];
