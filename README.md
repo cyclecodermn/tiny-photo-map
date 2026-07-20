@@ -12,6 +12,16 @@ The intended page has three fixed areas:
 
 The first milestone is one local static gallery using local sample images and manually supplied photo metadata. It should not include uploads, accounts, a database, video, search, tagging, deployment automation, or automatic EXIF scanning.
 
+## Local gallery
+
+Open `gallery/index.html` in a browser to view the current static shell. It selects the first sample photo on load, supports thumbnail selection and previous/next arrows, and updates two fixed map-style panels using manually supplied coordinates.
+
+Run the focused local check with:
+
+```sh
+python -m unittest tests/test_static_gallery.py
+```
+
 ## Planned project folders
 
 - `gallery/` — static gallery files

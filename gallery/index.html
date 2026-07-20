@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tiny Photo Map</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="gallery-shell" aria-label="Tiny Photo Map gallery">
+      <aside class="trip-panel" aria-label="Trip photos">
+        <header class="trip-summary">
+          <p class="eyebrow">Sample trip</p>
+          <h1>Coast Ridge Loop</h1>
+          <p>Four local development photos with hand-entered map points.</p>
+        </header>
+        <div id="thumbnailList" class="thumbnail-list" aria-label="Photo thumbnails"></div>
+      </aside>
+
+      <section class="photo-panel" aria-label="Selected photo">
+        <header class="photo-toolbar">
+          <button id="previousPhoto" class="arrow-button" type="button" aria-label="Previous photo">
+            &larr;
+          </button>
+          <div class="caption-block">
+            <h2 id="photoCaption">Loading photo</h2>
+            <p id="photoDate"></p>
+          </div>
+          <button id="nextPhoto" class="arrow-button" type="button" aria-label="Next photo">
+            &rarr;
+          </button>
+        </header>
+        <figure class="photo-frame">
+          <img id="mainPhoto" alt="">
+        </figure>
+      </section>
+
+      <aside class="map-panel" aria-label="Photo map views">
+        <section class="map-card" aria-labelledby="regionalMapTitle">
+          <header>
+            <h2 id="regionalMapTitle">Regional map</h2>
+            <p id="regionalCoordinates"></p>
+          </header>
+          <div class="map-canvas regional-map">
+            <div id="regionalMarker" class="map-marker" aria-hidden="true"></div>
+          </div>
+        </section>
+        <section class="map-card" aria-labelledby="localMapTitle">
+          <header>
+            <h2 id="localMapTitle">Local map</h2>
+            <p id="localCoordinates"></p>
+          </header>
+          <div class="map-canvas local-map">
+            <div id="localMarker" class="map-marker" aria-hidden="true"></div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="photos.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

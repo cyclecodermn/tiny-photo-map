@@ -1,5 +1,5 @@
 # Sample Photos
 
-Place only a small set of development images here.
+This folder contains a small set of local SVG development images used by the static gallery.
 
-Do not commit Steven's full personal photo collection. The first Auto run may add a few reusable stock or placeholder images, or document a local-only sample-photo setup.
+Do not commit Steven's full personal photo collection. Keep personal photo folders outside this repository or in ignored local-only paths.

@@ -1,3 +1,9 @@
 # Tests
 
-Lightweight automated checks belong here. The first checks should verify the static files, expected controls, thumbnail behavior, and photo-data structure without requiring a browser automation stack.
+Lightweight automated checks for the static gallery belong here.
+
+Run the current checks with:
+
+```sh
+python -m unittest tests/test_static_gallery.py
+```
