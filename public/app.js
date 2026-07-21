@@ -11,13 +11,12 @@
   const photoDate = document.getElementById("photoDate");
   const previousPhoto = document.getElementById("previousPhoto");
   const nextPhoto = document.getElementById("nextPhoto");
-  const regionalCoordinates = document.getElementById("regionalCoordinates");
-  const localCoordinates = document.getElementById("localCoordinates");
   const noDemoCoordinatesText = "No demonstration coordinates for this photo";
-  const assetVersion = "album-title-20260721";
+  const assetVersion = "topo-regional-fit-20260721";
   const catalogUrl = `photos.json?v=${assetVersion}`;
   const titleUrl = `title.json?v=${assetVersion}`;
   const regionalZoom = 10;
+  const regionalMaxFitZoom = 11;
   const localZoom = 14;
   const maps = {
     regional: {
@@ -25,7 +24,8 @@
       fallback: document.querySelector('[data-map-fallback="regional"]'),
       instance: null,
       markers: new Map(),
-      zoom: regionalZoom
+      zoom: regionalZoom,
+      maxFitZoom: regionalMaxFitZoom
     },
     local: {
       elementId: "localMap",
@@ -62,8 +62,6 @@
     mainPhoto.alt = "";
     photoCaption.textContent = message;
     photoDate.textContent = "";
-    regionalCoordinates.textContent = noDemoCoordinatesText;
-    localCoordinates.textContent = noDemoCoordinatesText;
     previousPhoto.disabled = true;
     nextPhoto.disabled = true;
   }
@@ -133,21 +131,44 @@
     });
   }
 
-  function updateMapViews(photo) {
-    if (!hasCoordinates(photo)) {
+  function mappedPhotos() {
+    return photos.filter(hasCoordinates);
+  }
+
+  function fitRegionalMap() {
+    const mapState = maps.regional;
+    if (!mapState.instance) {
+      return;
+    }
+
+    const mapped = mappedPhotos();
+    if (!mapped.length) {
+      return;
+    }
+
+    mapState.instance.invalidateSize();
+
+    if (mapped.length === 1) {
+      mapState.instance.setView([mapped[0].lat, mapped[0].lon], mapState.maxFitZoom);
+      return;
+    }
+
+    const bounds = L.latLngBounds(mapped.map((mappedPhoto) => [mappedPhoto.lat, mappedPhoto.lon]));
+    mapState.instance.fitBounds(bounds, {
+      padding: [28, 28],
+      maxZoom: mapState.maxFitZoom
+    });
+  }
+
+  function updateLocalMapView(photo) {
+    if (!hasCoordinates(photo) || !maps.local.instance) {
       return;
     }
 
     const latLng = [photo.lat, photo.lon];
 
-    Object.values(maps).forEach((mapState) => {
-      if (!mapState.instance) {
-        return;
-      }
-
-      mapState.instance.setView(latLng, mapState.zoom);
-      mapState.instance.invalidateSize();
-    });
+    maps.local.instance.setView(latLng, maps.local.zoom);
+    maps.local.instance.invalidateSize();
   }
 
   function updateSelectedThumbnail() {
@@ -167,9 +188,7 @@
     mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));
     photoCaption.textContent = safeText(photo.caption, photo.image);
     photoDate.textContent = safeText(photo.date, "Date unavailable");
-    regionalCoordinates.textContent = formatDemoLocation(photo);
-    localCoordinates.textContent = formatDemoLocation(photo);
-    updateMapViews(photo);
+    updateLocalMapView(photo);
     updateMapMarkerState();
     updateSelectedThumbnail();
   }
@@ -194,9 +213,10 @@
   }
 
   function addTileLayer(mapState) {
-    const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    const tiles = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+      maxZoom: 17,
+      maxNativeZoom: 17,
+      attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
     });
 
     tiles.on("tileerror", () => {
@@ -265,6 +285,14 @@
       buildMapMarkers(mapState);
       setTimeout(() => mapState.instance.invalidateSize(), 0);
     });
+
+    fitRegionalMap();
+    window.addEventListener("resize", fitRegionalMap);
+
+    if ("ResizeObserver" in window) {
+      const mapResizeObserver = new ResizeObserver(fitRegionalMap);
+      mapResizeObserver.observe(document.getElementById(maps.regional.elementId));
+    }
   }
 
   function normalizePhoto(rawPhoto, index) {

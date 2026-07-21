@@ -33,11 +33,11 @@ class StaticGalleryTest(unittest.TestCase):
 
         self.assertEqual(
             parser.links,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=album-title-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=topo-regional-fit-20260721"],
         )
         self.assertEqual(
             parser.scripts,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=album-title-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=topo-regional-fit-20260721"],
         )
         for element_id in {
             "albumTitle",
@@ -50,8 +50,6 @@ class StaticGalleryTest(unittest.TestCase):
             "photoCaption",
             "regionalMap",
             "localMap",
-            "regionalCoordinates",
-            "localCoordinates",
         }:
             self.assertIn(element_id, parser.ids)
 
@@ -115,7 +113,7 @@ class StaticGalleryTest(unittest.TestCase):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("selectPhoto(0);", app)
-        self.assertIn('const assetVersion = "album-title-20260721";', app)
+        self.assertIn('const assetVersion = "topo-regional-fit-20260721";', app)
         self.assertIn("const catalogUrl = `photos.json?v=${assetVersion}`;", app)
         self.assertIn("const titleUrl = `title.json?v=${assetVersion}`;", app)
         self.assertIn("await fetch(catalogUrl", app)
@@ -133,9 +131,7 @@ class StaticGalleryTest(unittest.TestCase):
             'mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));',
             "photoCaption.textContent = safeText(photo.caption, photo.image);",
             'photoDate.textContent = safeText(photo.date, "Date unavailable");',
-            "regionalCoordinates.textContent = formatDemoLocation(photo);",
-            "localCoordinates.textContent = formatDemoLocation(photo);",
-            "updateMapViews(photo);",
+            "updateLocalMapView(photo);",
             "updateMapMarkerState();",
             'button.classList.toggle("is-selected", isSelected);',
             'button.setAttribute("aria-current", isSelected ? "true" : "false");',
@@ -144,15 +140,19 @@ class StaticGalleryTest(unittest.TestCase):
         }:
             self.assertIn(expected, app)
 
-    def test_leaflet_maps_use_openstreetmap_tiles_and_attribution(self):
+    def test_leaflet_maps_use_topographic_tiles_and_attribution(self):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         for expected in {
             'L.map(mapState.elementId, {',
-            'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {',
-            "maxZoom: 19,",
+            'L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {',
+            "maxZoom: 17,",
+            "maxNativeZoom: 17,",
             "OpenStreetMap",
             'https://www.openstreetmap.org/copyright',
+            "OpenTopoMap",
+            "https://opentopomap.org",
+            "https://creativecommons.org/licenses/by-sa/3.0/",
             "tiles.on(\"tileerror\", () => {",
             "tiles.addTo(mapState.instance);",
             "scrollWheelZoom: false",
@@ -173,15 +173,45 @@ class StaticGalleryTest(unittest.TestCase):
         }:
             self.assertNotIn(old_mock_map_marker, public_text)
 
-    def test_both_map_instances_have_fixed_zoom_levels(self):
+    def test_map_headings_hide_visible_coordinate_subheads(self):
+        html = (PUBLIC / "index.html").read_text(encoding="utf-8")
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('<h2 id="regionalMapTitle">Regional Map</h2>', html)
+        self.assertIn('<h2 id="localMapTitle">Local Map</h2>', html)
+        self.assertNotIn("regionalCoordinates", html)
+        self.assertNotIn("localCoordinates", html)
+        self.assertIn("function formatDemoLocation(photo)", app)
+        self.assertIn("const marker = L.marker([photo.lat, photo.lon], {", app)
+
+    def test_regional_map_fits_all_mapped_photos_with_padding_and_max_zoom(self):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         for expected in {
             "const regionalZoom = 10;",
+            "const regionalMaxFitZoom = 11;",
             "const localZoom = 14;",
             'elementId: "regionalMap",',
             'elementId: "localMap",',
-            "mapState.instance.setView(latLng, mapState.zoom);",
+            "function mappedPhotos()",
+            "return photos.filter(hasCoordinates);",
+            "function fitRegionalMap()",
+            "const bounds = L.latLngBounds(mapped.map((mappedPhoto) => [mappedPhoto.lat, mappedPhoto.lon]));",
+            "padding: [28, 28],",
+            "maxZoom: mapState.maxFitZoom",
+            "window.addEventListener(\"resize\", fitRegionalMap);",
+            "const mapResizeObserver = new ResizeObserver(fitRegionalMap);",
+        }:
+            self.assertIn(expected, app)
+
+    def test_local_map_tracks_selected_mapped_photo(self):
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            "function updateLocalMapView(photo)",
+            "maps.local.instance.setView(latLng, maps.local.zoom);",
+            "maps.local.instance.invalidateSize();",
+            "updateLocalMapView(photo);",
         }:
             self.assertIn(expected, app)
 

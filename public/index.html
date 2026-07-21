@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Tiny Photo Map</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="styles.css?v=album-title-20260721">
+    <link rel="stylesheet" href="styles.css?v=topo-regional-fit-20260721">
   </head>
   <body>
     <main class="gallery-shell" aria-label="Tiny Photo Map gallery">
@@ -39,19 +39,17 @@
       <aside class="map-panel" aria-label="Photo map views">
         <section class="map-card" aria-labelledby="regionalMapTitle">
           <header>
-            <h2 id="regionalMapTitle">Regional map</h2>
-            <p id="regionalCoordinates"></p>
+            <h2 id="regionalMapTitle">Regional Map</h2>
           </header>
-          <div id="regionalMap" class="map-canvas regional-map" role="application" aria-label="Regional demonstration location map">
+          <div id="regionalMap" class="map-canvas regional-map" role="application" aria-label="Regional photo location map">
             <p class="map-fallback" data-map-fallback="regional" hidden>Map tiles could not load. The gallery and selected photo details remain available.</p>
           </div>
         </section>
         <section class="map-card" aria-labelledby="localMapTitle">
           <header>
-            <h2 id="localMapTitle">Local map</h2>
-            <p id="localCoordinates"></p>
+            <h2 id="localMapTitle">Local Map</h2>
           </header>
-          <div id="localMap" class="map-canvas local-map" role="application" aria-label="Local demonstration location map">
+          <div id="localMap" class="map-canvas local-map" role="application" aria-label="Local photo location map">
             <p class="map-fallback" data-map-fallback="local" hidden>Map tiles could not load. The gallery and selected photo details remain available.</p>
           </div>
         </section>
@@ -59,6 +57,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="app.js?v=album-title-20260721"></script>
+    <script src="app.js?v=topo-regional-fit-20260721"></script>
   </body>
 </html>
