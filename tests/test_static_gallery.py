@@ -33,11 +33,11 @@ class StaticGalleryTest(unittest.TestCase):
 
         self.assertEqual(
             parser.links,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=topo-regional-fit-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=side-collapse-20260721"],
         )
         self.assertEqual(
             parser.scripts,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=topo-regional-fit-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=side-collapse-20260721"],
         )
         for element_id in {
             "albumTitle",
@@ -50,6 +50,9 @@ class StaticGalleryTest(unittest.TestCase):
             "photoCaption",
             "regionalMap",
             "localMap",
+            "galleryShell",
+            "toggleTripPanel",
+            "toggleMapPanel",
         }:
             self.assertIn(element_id, parser.ids)
 
@@ -113,7 +116,7 @@ class StaticGalleryTest(unittest.TestCase):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("selectPhoto(0);", app)
-        self.assertIn('const assetVersion = "topo-regional-fit-20260721";', app)
+        self.assertIn('const assetVersion = "side-collapse-20260721";', app)
         self.assertIn("const catalogUrl = `photos.json?v=${assetVersion}`;", app)
         self.assertIn("const titleUrl = `title.json?v=${assetVersion}`;", app)
         self.assertIn("await fetch(catalogUrl", app)
@@ -212,6 +215,55 @@ class StaticGalleryTest(unittest.TestCase):
             "maps.local.instance.setView(latLng, maps.local.zoom);",
             "maps.local.instance.invalidateSize();",
             "updateLocalMapView(photo);",
+        }:
+            self.assertIn(expected, app)
+
+    def test_side_columns_have_independent_accessible_collapse_controls(self):
+        html = (PUBLIC / "index.html").read_text(encoding="utf-8")
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+        styles = (PUBLIC / "styles.css").read_text(encoding="utf-8")
+
+        for expected in {
+            'id="toggleTripPanel"',
+            'aria-controls="tripPanel"',
+            'aria-label="Collapse album and thumbnails"',
+            'id="toggleMapPanel"',
+            'aria-controls="mapPanel"',
+            'aria-label="Collapse maps"',
+            'aria-expanded="true"',
+        }:
+            self.assertIn(expected, html)
+
+        for expected in {
+            "function setPanelCollapsed(side, isCollapsed)",
+            '"is-left-collapsed"',
+            '"is-right-collapsed"',
+            'button.setAttribute("aria-expanded", expanded ? "true" : "false");',
+            'isCollapsed ? "Show album and thumbnails" : "Collapse album and thumbnails"',
+            'button.setAttribute("aria-label", isCollapsed ? "Show maps" : "Collapse maps");',
+            "function initializePanelToggles()",
+        }:
+            self.assertIn(expected, app)
+
+        for expected in {
+            ".gallery-shell.is-left-collapsed",
+            ".gallery-shell.is-right-collapsed",
+            ".gallery-shell.is-left-collapsed.is-right-collapsed",
+            ".gallery-shell.is-left-collapsed .trip-panel",
+            ".gallery-shell.is-right-collapsed .map-panel",
+            ".panel-toggle:focus-visible",
+        }:
+            self.assertIn(expected, styles)
+
+    def test_restoring_right_column_refreshes_leaflet_layout(self):
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            "function refreshMapsAfterLayoutChange()",
+            "mapState.instance.invalidateSize();",
+            "fitRegionalMap();",
+            "updateLocalMapView(photos[selectedIndex]);",
+            "setTimeout(refreshMapsAfterLayoutChange, 0);",
         }:
             self.assertIn(expected, app)
 

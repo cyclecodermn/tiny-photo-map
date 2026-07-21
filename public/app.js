@@ -11,8 +11,11 @@
   const photoDate = document.getElementById("photoDate");
   const previousPhoto = document.getElementById("previousPhoto");
   const nextPhoto = document.getElementById("nextPhoto");
+  const galleryShell = document.getElementById("galleryShell");
+  const toggleTripPanel = document.getElementById("toggleTripPanel");
+  const toggleMapPanel = document.getElementById("toggleMapPanel");
   const noDemoCoordinatesText = "No demonstration coordinates for this photo";
-  const assetVersion = "topo-regional-fit-20260721";
+  const assetVersion = "side-collapse-20260721";
   const catalogUrl = `photos.json?v=${assetVersion}`;
   const titleUrl = `title.json?v=${assetVersion}`;
   const regionalZoom = 10;
@@ -169,6 +172,51 @@
 
     maps.local.instance.setView(latLng, maps.local.zoom);
     maps.local.instance.invalidateSize();
+  }
+
+  function refreshMapsAfterLayoutChange() {
+    Object.values(maps).forEach((mapState) => {
+      if (mapState.instance) {
+        mapState.instance.invalidateSize();
+      }
+    });
+    fitRegionalMap();
+    updateLocalMapView(photos[selectedIndex]);
+  }
+
+  function setPanelCollapsed(side, isCollapsed) {
+    const isLeft = side === "left";
+    const className = isLeft ? "is-left-collapsed" : "is-right-collapsed";
+    const button = isLeft ? toggleTripPanel : toggleMapPanel;
+    const expanded = !isCollapsed;
+
+    galleryShell.classList.toggle(className, isCollapsed);
+    button.setAttribute("aria-expanded", expanded ? "true" : "false");
+
+    if (isLeft) {
+      button.innerHTML = isCollapsed ? "&rarr;" : "&larr;";
+      button.setAttribute(
+        "aria-label",
+        isCollapsed ? "Show album and thumbnails" : "Collapse album and thumbnails"
+      );
+      return;
+    }
+
+    button.innerHTML = isCollapsed ? "&larr;" : "&rarr;";
+    button.setAttribute("aria-label", isCollapsed ? "Show maps" : "Collapse maps");
+
+    if (!isCollapsed) {
+      setTimeout(refreshMapsAfterLayoutChange, 0);
+    }
+  }
+
+  function initializePanelToggles() {
+    toggleTripPanel.addEventListener("click", () => {
+      setPanelCollapsed("left", !galleryShell.classList.contains("is-left-collapsed"));
+    });
+    toggleMapPanel.addEventListener("click", () => {
+      setPanelCollapsed("right", !galleryShell.classList.contains("is-right-collapsed"));
+    });
   }
 
   function updateSelectedThumbnail() {
@@ -376,6 +424,7 @@
     initializeMaps();
     previousPhoto.addEventListener("click", () => selectPhoto(selectedIndex - 1));
     nextPhoto.addEventListener("click", () => selectPhoto(selectedIndex + 1));
+    initializePanelToggles();
     selectPhoto(0);
   }
 
