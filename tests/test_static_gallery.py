@@ -49,46 +49,56 @@ class StaticGalleryTest(unittest.TestCase):
         }:
             self.assertIn(element_id, parser.ids)
 
-    def test_photo_data_uses_local_samples_with_portland_demo_coordinates(self):
+    def test_photo_data_uses_local_samples_with_real_photo_coordinates(self):
         catalog = json.loads((PUBLIC / "photos.json").read_text(encoding="utf-8"))
         photos = catalog["photos"]
         ids = [photo["id"] for photo in photos]
         images = [photo["image"] for photo in photos]
-        coordinates = [(photo["lat"], photo["lon"]) for photo in photos]
-        demo_locations = [photo["demoLocation"] for photo in photos]
+        mapped_photos = [
+            photo
+            for photo in photos
+            if isinstance(photo.get("lat"), int | float) and isinstance(photo.get("lon"), int | float)
+        ]
         photo_data = json.dumps(catalog)
 
         self.assertEqual(catalog["schemaVersion"], 1)
-        self.assertEqual(len(ids), 4)
+        self.assertGreaterEqual(len(ids), 1)
         self.assertEqual(len(images), len(ids))
-        self.assertEqual(len(coordinates), len(ids))
-        self.assertEqual(len(demo_locations), len(ids))
-        self.assertIn((45.4659, -122.663), coordinates)
-        self.assertIn((45.5117, -122.5947), coordinates)
-        self.assertIn((45.5884, -122.7641), coordinates)
-        self.assertIn("Sellwood Riverfront Park", demo_locations)
-        self.assertIn("Mount Tabor Park", demo_locations)
-        self.assertIn("Cathedral Park", demo_locations)
-        self.assertIn("Demonstration data only", photo_data)
-        self.assertNotIn("Three Sisters", photo_data)
+        self.assertGreaterEqual(len(mapped_photos), 1)
+        self.assertTrue(
+            any(
+                -90 <= photo["lat"] <= 90 and -180 <= photo["lon"] <= 180
+                for photo in mapped_photos
+            )
+        )
+        self.assertIn("sample_photos/20260709_153020.jpg", images)
+        self.assertFalse(
+            any(
+                "lat" in photo or "lon" in photo
+                for photo in photos
+                if photo["image"] == "sample_photos/20260709_153020.jpg"
+            )
+        )
+        self.assertNotIn("Demonstration data only", photo_data)
         self.assertNotIn("regionalPosition", photo_data)
         self.assertNotIn("localPosition", photo_data)
         for image in images:
             self.assertTrue(image.startswith("sample_photos/"))
+            self.assertTrue(image.lower().endswith((".jpg", ".jpeg")))
             self.assertTrue((PUBLIC / image).resolve().is_file())
 
     def test_public_site_is_self_contained(self):
-        for asset in {
+        required_assets = {
             "index.html",
             "styles.css",
             "photos.json",
             "photo_overrides.json",
             "app.js",
-            "sample_photos/harbor-overlook.svg",
-            "sample_photos/ridge-trail.svg",
-            "sample_photos/river-bend.svg",
-            "sample_photos/camp-lights.svg",
-        }:
+        }
+        catalog = json.loads((PUBLIC / "photos.json").read_text(encoding="utf-8"))
+        catalog_images = {photo["image"] for photo in catalog["photos"]}
+
+        for asset in required_assets | catalog_images:
             self.assertTrue((PUBLIC / asset).is_file(), asset)
 
         photo_data = (PUBLIC / "photos.json").read_text(encoding="utf-8")
