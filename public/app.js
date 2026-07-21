@@ -15,7 +15,7 @@
   const toggleTripPanel = document.getElementById("toggleTripPanel");
   const toggleMapPanel = document.getElementById("toggleMapPanel");
   const noDemoCoordinatesText = "No demonstration coordinates for this photo";
-  const assetVersion = "side-collapse-20260721";
+  const assetVersion = "star-marker-20260721";
   const catalogUrl = `photos.json?v=${assetVersion}`;
   const titleUrl = `title.json?v=${assetVersion}`;
   const regionalZoom = 10;
@@ -47,16 +47,12 @@
     return typeof value === "string" && value.trim() ? value : fallback;
   }
 
-  function formatCoordinates(photo) {
-    return `${photo.lat.toFixed(4)}, ${photo.lon.toFixed(4)}`;
-  }
-
   function formatDemoLocation(photo) {
     if (!hasCoordinates(photo)) {
       return noDemoCoordinatesText;
     }
 
-    return `Location: ${safeText(photo.demoLocation, "Photo coordinates")} (${formatCoordinates(photo)})`;
+    return safeText(photo.demoLocation, "Photo location");
   }
 
   function showGalleryMessage(message) {
@@ -103,6 +99,7 @@
   function createMarkerIcon(isSelected) {
     return L.divIcon({
       className: `photo-map-marker${isSelected ? " is-selected" : ""}`,
+      html: '<span class="photo-map-star" aria-hidden="true"></span>',
       iconSize: isSelected ? [22, 22] : [16, 16],
       iconAnchor: isSelected ? [11, 11] : [8, 8]
     });
@@ -122,14 +119,6 @@
       mapState.markers.forEach((marker, photoId) => {
         const isSelected = photoId === photo.id;
         marker.setIcon(createMarkerIcon(isSelected));
-
-        if (isSelected) {
-          if (hasCoordinates(photo)) {
-            marker.openPopup();
-          }
-        } else {
-          marker.closePopup();
-        }
       });
     });
   }
@@ -235,7 +224,7 @@
     mainPhoto.src = photo.image;
     mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));
     photoCaption.textContent = safeText(photo.caption, photo.image);
-    photoDate.textContent = safeText(photo.date, "Date unavailable");
+    photoDate.textContent = "";
     updateLocalMapView(photo);
     updateMapMarkerState();
     updateSelectedThumbnail();
@@ -274,18 +263,6 @@
     tiles.addTo(mapState.instance);
   }
 
-  function createMarkerPopup(photo) {
-    const wrapper = document.createElement("div");
-    const location = document.createElement("strong");
-    const caption = document.createElement("span");
-
-    location.textContent = safeText(photo.demoLocation, "Photo coordinates");
-    caption.textContent = safeText(photo.caption, photo.image);
-    wrapper.append(location, document.createElement("br"), caption);
-
-    return wrapper;
-  }
-
   function buildMapMarkers(mapState) {
     photos.forEach((photo, index) => {
       if (!hasCoordinates(photo)) {
@@ -296,11 +273,10 @@
         alt: formatDemoLocation(photo),
         keyboard: true,
         riseOnHover: true,
-        title: `${formatDemoLocation(photo)} - ${safeText(photo.demoLocationNote, "Photo location")}`,
+        title: safeText(photo.demoLocationNote, formatDemoLocation(photo)),
         icon: createMarkerIcon(false)
       });
 
-      marker.bindPopup(createMarkerPopup(photo));
       marker.on("click", () => selectPhoto(index));
       marker.addTo(mapState.instance);
       mapState.markers.set(photo.id, marker);

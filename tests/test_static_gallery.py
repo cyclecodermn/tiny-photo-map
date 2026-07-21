@@ -33,11 +33,11 @@ class StaticGalleryTest(unittest.TestCase):
 
         self.assertEqual(
             parser.links,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=side-collapse-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=star-marker-20260721"],
         )
         self.assertEqual(
             parser.scripts,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=side-collapse-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=star-marker-20260721"],
         )
         for element_id in {
             "albumTitle",
@@ -116,7 +116,7 @@ class StaticGalleryTest(unittest.TestCase):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("selectPhoto(0);", app)
-        self.assertIn('const assetVersion = "side-collapse-20260721";', app)
+        self.assertIn('const assetVersion = "star-marker-20260721";', app)
         self.assertIn("const catalogUrl = `photos.json?v=${assetVersion}`;", app)
         self.assertIn("const titleUrl = `title.json?v=${assetVersion}`;", app)
         self.assertIn("await fetch(catalogUrl", app)
@@ -133,15 +133,16 @@ class StaticGalleryTest(unittest.TestCase):
             "mainPhoto.src = photo.image;",
             'mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));',
             "photoCaption.textContent = safeText(photo.caption, photo.image);",
-            'photoDate.textContent = safeText(photo.date, "Date unavailable");',
+            'photoDate.textContent = "";',
             "updateLocalMapView(photo);",
             "updateMapMarkerState();",
             'button.classList.toggle("is-selected", isSelected);',
             'button.setAttribute("aria-current", isSelected ? "true" : "false");',
             "marker.setIcon(createMarkerIcon(isSelected));",
-            "marker.openPopup();",
         }:
             self.assertIn(expected, app)
+        self.assertNotIn("openPopup", app)
+        self.assertNotIn("closePopup", app)
 
     def test_leaflet_maps_use_topographic_tiles_and_attribution(self):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
@@ -186,6 +187,7 @@ class StaticGalleryTest(unittest.TestCase):
         self.assertNotIn("localCoordinates", html)
         self.assertIn("function formatDemoLocation(photo)", app)
         self.assertIn("const marker = L.marker([photo.lat, photo.lon], {", app)
+        self.assertNotIn("toFixed(4)", app)
 
     def test_regional_map_fits_all_mapped_photos_with_padding_and_max_zoom(self):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
@@ -280,6 +282,43 @@ class StaticGalleryTest(unittest.TestCase):
             "mapState.markers.set(photo.id, marker);",
         }:
             self.assertIn(expected, app)
+        self.assertNotIn("bindPopup", app)
+        self.assertNotIn("createMarkerPopup", app)
+
+    def test_map_markers_use_star_icons_with_visible_selected_state(self):
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+        styles = (PUBLIC / "styles.css").read_text(encoding="utf-8")
+
+        for expected in {
+            "function createMarkerIcon(isSelected)",
+            'className: `photo-map-marker${isSelected ? " is-selected" : ""}`',
+            'html: \'<span class="photo-map-star" aria-hidden="true"></span>\'',
+            "iconSize: isSelected ? [22, 22] : [16, 16],",
+            "iconAnchor: isSelected ? [11, 11] : [8, 8]",
+        }:
+            self.assertIn(expected, app)
+
+        for expected in {
+            ".photo-map-star",
+            "clip-path: polygon(",
+            "background: #b91c1c;",
+            ".photo-map-marker.is-selected .photo-map-star",
+            "background: #facc15;",
+        }:
+            self.assertIn(expected, styles)
+
+    def test_removed_date_labels_are_absent_while_friendly_caption_remains(self):
+        title = json.loads((PUBLIC / "title.json").read_text(encoding="utf-8"))
+        catalog = json.loads((PUBLIC / "photos.json").read_text(encoding="utf-8"))
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+
+        self.assertEqual(title["title"], "Mt. Hood Photo Map")
+        self.assertEqual(title["subtitle"], "")
+        self.assertNotIn("July 2026", json.dumps(title))
+        self.assertNotIn('photoDate.textContent = safeText(photo.date, "Date unavailable");', app)
+        self.assertIn('photoDate.textContent = "";', app)
+        self.assertTrue(any(photo["caption"] == "9 Jul 2026, 10:44 AM" for photo in catalog["photos"]))
+        self.assertTrue(any(photo["date"] == "2026-07-09" for photo in catalog["photos"]))
 
     def test_photos_without_coordinates_are_supported(self):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
