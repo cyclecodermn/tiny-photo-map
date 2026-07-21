@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Tiny Photo Map</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="styles.css?v=star-marker-20260721">
+    <link rel="stylesheet" href="styles.css?v=viewer-20260721">
   </head>
   <body>
     <main id="galleryShell" class="gallery-shell" aria-label="Tiny Photo Map gallery">
@@ -38,8 +38,17 @@
             &rarr;
           </button>
         </header>
-        <figure class="photo-frame">
+        <figure id="photoFrame" class="photo-frame">
+          <div id="viewerControls" class="viewer-controls" aria-label="Full-screen photo controls">
+            <button id="viewerPreviousPhoto" class="viewer-button" type="button" aria-label="Previous photo in full-screen viewer">&larr;</button>
+            <button id="zoomOutPhoto" class="viewer-button" type="button" aria-label="Zoom out selected photo">-</button>
+            <span id="zoomLevel" class="zoom-level" aria-live="polite">1x</span>
+            <button id="zoomInPhoto" class="viewer-button" type="button" aria-label="Zoom in selected photo">+</button>
+            <button id="viewerNextPhoto" class="viewer-button" type="button" aria-label="Next photo in full-screen viewer">&rarr;</button>
+            <button id="restoreGallery" class="viewer-button restore-button" type="button" aria-label="Restore gallery layout">Restore</button>
+          </div>
           <img id="mainPhoto" alt="">
+          <button id="openViewer" class="open-viewer-button" type="button" aria-label="Expand selected photo full screen">Full screen</button>
         </figure>
       </section>
 
@@ -64,6 +73,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=star-marker-20260721"></script>
+  <script src="app.js?v=viewer-20260721"></script>
   </body>
 </html>

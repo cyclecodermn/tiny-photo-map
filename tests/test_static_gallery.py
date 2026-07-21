@@ -33,11 +33,11 @@ class StaticGalleryTest(unittest.TestCase):
 
         self.assertEqual(
             parser.links,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=star-marker-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=viewer-20260721"],
         )
         self.assertEqual(
             parser.scripts,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=star-marker-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=viewer-20260721"],
         )
         for element_id in {
             "albumTitle",
@@ -53,6 +53,15 @@ class StaticGalleryTest(unittest.TestCase):
             "galleryShell",
             "toggleTripPanel",
             "toggleMapPanel",
+            "photoFrame",
+            "openViewer",
+            "viewerControls",
+            "viewerPreviousPhoto",
+            "viewerNextPhoto",
+            "zoomOutPhoto",
+            "zoomInPhoto",
+            "zoomLevel",
+            "restoreGallery",
         }:
             self.assertIn(element_id, parser.ids)
 
@@ -116,7 +125,7 @@ class StaticGalleryTest(unittest.TestCase):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("selectPhoto(0);", app)
-        self.assertIn('const assetVersion = "star-marker-20260721";', app)
+        self.assertIn('const assetVersion = "viewer-20260721";', app)
         self.assertIn("const catalogUrl = `photos.json?v=${assetVersion}`;", app)
         self.assertIn("const titleUrl = `title.json?v=${assetVersion}`;", app)
         self.assertIn("await fetch(catalogUrl", app)
@@ -134,6 +143,8 @@ class StaticGalleryTest(unittest.TestCase):
             'mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));',
             "photoCaption.textContent = safeText(photo.caption, photo.image);",
             'photoDate.textContent = "";',
+            "if (viewerOpen) {",
+            "resetViewerZoom();",
             "updateLocalMapView(photo);",
             "updateMapMarkerState();",
             'button.classList.toggle("is-selected", isSelected);',
@@ -375,6 +386,85 @@ class StaticGalleryTest(unittest.TestCase):
             "object-fit: contain;",
         }:
             self.assertIn(expected, rule_body)
+
+    def test_full_screen_viewer_has_accessible_controls(self):
+        html = (PUBLIC / "index.html").read_text(encoding="utf-8")
+        styles = (PUBLIC / "styles.css").read_text(encoding="utf-8")
+
+        for expected in {
+            'id="openViewer"',
+            'aria-label="Expand selected photo full screen"',
+            'id="viewerControls"',
+            'aria-label="Full-screen photo controls"',
+            'id="viewerPreviousPhoto"',
+            'aria-label="Previous photo in full-screen viewer"',
+            'id="viewerNextPhoto"',
+            'aria-label="Next photo in full-screen viewer"',
+            'id="zoomOutPhoto"',
+            'aria-label="Zoom out selected photo"',
+            'id="zoomInPhoto"',
+            'aria-label="Zoom in selected photo"',
+            'id="restoreGallery"',
+            'aria-label="Restore gallery layout"',
+            'aria-live="polite"',
+        }:
+            self.assertIn(expected, html)
+
+        for expected in {
+            ".open-viewer-button:focus-visible",
+            ".viewer-button:focus-visible",
+            ".photo-frame.is-viewer-open .viewer-controls",
+            "@media (max-width: 900px)",
+            "max-width: calc(100vw - 1rem);",
+        }:
+            self.assertIn(expected, styles)
+
+    def test_full_screen_viewer_uses_native_api_with_fallback_and_escape_restore(self):
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+
+        for expected in {
+            "async function openFullScreenViewer()",
+            "if (photoFrame.requestFullscreen) {",
+            "await photoFrame.requestFullscreen();",
+            "setViewerOpen(true, false);",
+            "setViewerOpen(true, true);",
+            "async function restoreGalleryLayout()",
+            "document.exitFullscreen",
+            "document.addEventListener(\"fullscreenchange\", () => {",
+            "document.addEventListener(\"keydown\", (event) => {",
+            'if (event.key === "Escape" && viewerOpen) {',
+            "restoreGalleryLayout();",
+            "setTimeout(refreshMapsAfterLayoutChange, 0);",
+        }:
+            self.assertIn(expected, app)
+
+    def test_full_screen_viewer_zoom_is_limited_and_image_only(self):
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+        styles = (PUBLIC / "styles.css").read_text(encoding="utf-8")
+
+        for expected in {
+            "const minViewerZoom = 1;",
+            "const maxViewerZoom = 4;",
+            "const viewerZoomStep = 0.5;",
+            'mainPhoto.style.setProperty("--viewer-zoom", viewerZoom);',
+            "zoomOutPhoto.disabled = viewerZoom <= minViewerZoom;",
+            "zoomInPhoto.disabled = viewerZoom >= maxViewerZoom;",
+            "Math.min(maxViewerZoom, Math.max(minViewerZoom, nextZoom));",
+            "zoomOutPhoto.addEventListener(\"click\", () => adjustViewerZoom(-1));",
+            "zoomInPhoto.addEventListener(\"click\", () => adjustViewerZoom(1));",
+            "viewerPreviousPhoto.addEventListener(\"click\", () => selectPhoto(selectedIndex - 1));",
+            "viewerNextPhoto.addEventListener(\"click\", () => selectPhoto(selectedIndex + 1));",
+        }:
+            self.assertIn(expected, app)
+
+        for expected in {
+            ".photo-frame.is-viewer-open {",
+            "overflow: auto;",
+            "width: calc(100vw * var(--viewer-zoom, 1));",
+            "height: calc((100vh - 5.75rem) * var(--viewer-zoom, 1));",
+            "object-fit: contain;",
+        }:
+            self.assertIn(expected, styles)
 
 
 if __name__ == "__main__":

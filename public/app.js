@@ -14,13 +14,27 @@
   const galleryShell = document.getElementById("galleryShell");
   const toggleTripPanel = document.getElementById("toggleTripPanel");
   const toggleMapPanel = document.getElementById("toggleMapPanel");
+  const photoFrame = document.getElementById("photoFrame");
+  const openViewer = document.getElementById("openViewer");
+  const viewerPreviousPhoto = document.getElementById("viewerPreviousPhoto");
+  const viewerNextPhoto = document.getElementById("viewerNextPhoto");
+  const zoomOutPhoto = document.getElementById("zoomOutPhoto");
+  const zoomInPhoto = document.getElementById("zoomInPhoto");
+  const restoreGallery = document.getElementById("restoreGallery");
+  const zoomLevel = document.getElementById("zoomLevel");
   const noDemoCoordinatesText = "No demonstration coordinates for this photo";
-  const assetVersion = "star-marker-20260721";
+  const assetVersion = "viewer-20260721";
   const catalogUrl = `photos.json?v=${assetVersion}`;
   const titleUrl = `title.json?v=${assetVersion}`;
   const regionalZoom = 10;
   const regionalMaxFitZoom = 11;
   const localZoom = 14;
+  const minViewerZoom = 1;
+  const maxViewerZoom = 4;
+  const viewerZoomStep = 0.5;
+  let viewerZoom = minViewerZoom;
+  let viewerOpen = false;
+  let fallbackViewerOpen = false;
   const maps = {
     regional: {
       elementId: "regionalMap",
@@ -173,6 +187,99 @@
     updateLocalMapView(photos[selectedIndex]);
   }
 
+  function updateViewerZoom() {
+    mainPhoto.style.setProperty("--viewer-zoom", viewerZoom);
+    zoomLevel.textContent = `${viewerZoom}x`;
+    zoomOutPhoto.disabled = viewerZoom <= minViewerZoom;
+    zoomInPhoto.disabled = viewerZoom >= maxViewerZoom;
+  }
+
+  function resetViewerZoom() {
+    viewerZoom = minViewerZoom;
+    updateViewerZoom();
+  }
+
+  function setViewerOpen(isOpen, usesFallback) {
+    viewerOpen = isOpen;
+    fallbackViewerOpen = isOpen && usesFallback;
+    photoFrame.classList.toggle("is-viewer-open", isOpen);
+    photoFrame.classList.toggle("is-fallback-viewer", fallbackViewerOpen);
+    openViewer.setAttribute("aria-expanded", isOpen ? "true" : "false");
+
+    if (isOpen) {
+      resetViewerZoom();
+      photoFrame.focus();
+      return;
+    }
+
+    resetViewerZoom();
+    setTimeout(refreshMapsAfterLayoutChange, 0);
+  }
+
+  async function openFullScreenViewer() {
+    if (viewerOpen) {
+      return;
+    }
+
+    if (photoFrame.requestFullscreen) {
+      try {
+        await photoFrame.requestFullscreen();
+        setViewerOpen(true, false);
+        return;
+      } catch (error) {
+        setViewerOpen(true, true);
+        return;
+      }
+    }
+
+    setViewerOpen(true, true);
+  }
+
+  async function restoreGalleryLayout() {
+    if (document.fullscreenElement === photoFrame && document.exitFullscreen) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    setViewerOpen(false, false);
+  }
+
+  function adjustViewerZoom(direction) {
+    if (!viewerOpen) {
+      return;
+    }
+
+    const nextZoom = viewerZoom + direction * viewerZoomStep;
+    viewerZoom = Math.min(maxViewerZoom, Math.max(minViewerZoom, nextZoom));
+    updateViewerZoom();
+  }
+
+  function initializeViewerControls() {
+    openViewer.setAttribute("aria-expanded", "false");
+    openViewer.addEventListener("click", openFullScreenViewer);
+    viewerPreviousPhoto.addEventListener("click", () => selectPhoto(selectedIndex - 1));
+    viewerNextPhoto.addEventListener("click", () => selectPhoto(selectedIndex + 1));
+    zoomOutPhoto.addEventListener("click", () => adjustViewerZoom(-1));
+    zoomInPhoto.addEventListener("click", () => adjustViewerZoom(1));
+    restoreGallery.addEventListener("click", restoreGalleryLayout);
+    document.addEventListener("fullscreenchange", () => {
+      if (document.fullscreenElement === photoFrame) {
+        setViewerOpen(true, false);
+        return;
+      }
+
+      if (viewerOpen && !fallbackViewerOpen) {
+        setViewerOpen(false, false);
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && viewerOpen) {
+        restoreGalleryLayout();
+      }
+    });
+    updateViewerZoom();
+  }
+
   function setPanelCollapsed(side, isCollapsed) {
     const isLeft = side === "left";
     const className = isLeft ? "is-left-collapsed" : "is-right-collapsed";
@@ -225,6 +332,9 @@
     mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));
     photoCaption.textContent = safeText(photo.caption, photo.image);
     photoDate.textContent = "";
+    if (viewerOpen) {
+      resetViewerZoom();
+    }
     updateLocalMapView(photo);
     updateMapMarkerState();
     updateSelectedThumbnail();
@@ -401,6 +511,7 @@
     previousPhoto.addEventListener("click", () => selectPhoto(selectedIndex - 1));
     nextPhoto.addEventListener("click", () => selectPhoto(selectedIndex + 1));
     initializePanelToggles();
+    initializeViewerControls();
     selectPhoto(0);
   }
 
