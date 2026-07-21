@@ -34,15 +34,18 @@ def rational(num: int, den: int) -> bytes:
     return struct.pack(">II", num, den)
 
 
-def sample_jpeg_with_exif() -> bytes:
-    date_count, date_value = ascii_value("2024:07:04 12:34:56")
+def sample_jpeg_with_exif(date_time: str = "2024:07:04 12:34:56", offset_time: str | None = None) -> bytes:
+    date_count, date_value = ascii_value(date_time)
+    offset_count, offset_value = ascii_value(offset_time) if offset_time else (0, b"")
     tiff = bytearray(b"MM\x00*\x00\x00\x00\x08")
 
     ifd0_offset = 8
     ifd0_entries = 3
+    exif_entries = 2 if offset_time else 1
     exif_ifd_offset = ifd0_offset + 2 + ifd0_entries * 12 + 4
-    exif_value_offset = exif_ifd_offset + 2 + 1 * 12 + 4
-    gps_ifd_offset = exif_value_offset + len(date_value)
+    exif_value_offset = exif_ifd_offset + 2 + exif_entries * 12 + 4
+    offset_value_offset = exif_value_offset + len(date_value)
+    gps_ifd_offset = offset_value_offset + len(offset_value)
     gps_values_offset = gps_ifd_offset + 2 + 4 * 12 + 4
 
     tiff.extend(struct.pack(">H", ifd0_entries))
@@ -51,10 +54,13 @@ def sample_jpeg_with_exif() -> bytes:
     tiff.extend(ifd_entry(0x0132, 2, date_count, struct.pack(">I", exif_value_offset)))
     tiff.extend(struct.pack(">I", 0))
 
-    tiff.extend(struct.pack(">H", 1))
+    tiff.extend(struct.pack(">H", exif_entries))
     tiff.extend(ifd_entry(0x9003, 2, date_count, struct.pack(">I", exif_value_offset)))
+    if offset_time:
+        tiff.extend(ifd_entry(0x9011, 2, offset_count, struct.pack(">I", offset_value_offset)))
     tiff.extend(struct.pack(">I", 0))
     tiff.extend(date_value)
+    tiff.extend(offset_value)
 
     lat_offset = gps_values_offset
     lon_offset = lat_offset + 24
@@ -146,6 +152,90 @@ class RefreshPhotosTest(unittest.TestCase):
         self.assertEqual(catalog["photos"][0]["caption"], "Manual caption")
         self.assertNotIn("ignoredExecutable", catalog["photos"][0])
 
+    def test_numeric_filename_caption_uses_friendly_oregon_summer_time(self):
+        write_bytes(self.public / "sample_photos" / "20260711_173358.jpg", b"\xff\xd8\xff\xd9")
+
+        catalog, result = refresh_photos.build_catalog(self.public)
+
+        self.assertEqual(catalog["photos"][0]["caption"], "11 Jul 2026, 5:33 PM")
+        self.assertEqual(catalog["photos"][0]["alt"], "11 Jul 2026, 5:33 PM")
+
+    def test_numeric_filename_caption_uses_friendly_oregon_winter_time(self):
+        write_bytes(self.public / "sample_photos" / "20261211_073358.jpg", b"\xff\xd8\xff\xd9")
+
+        catalog, result = refresh_photos.build_catalog(self.public)
+
+        self.assertEqual(catalog["photos"][0]["caption"], "11 Dec 2026, 7:33 AM")
+
+    def test_numeric_filename_caption_prefers_exif_offset_when_available(self):
+        write_bytes(
+            self.public / "sample_photos" / "20260711_173358.jpg",
+            sample_jpeg_with_exif("2026:07:11 20:33:58", "-04:00"),
+        )
+
+        catalog, result = refresh_photos.build_catalog(self.public)
+
+        self.assertEqual(catalog["photos"][0]["caption"], "11 Jul 2026, 8:33 PM")
+
+    def test_manual_and_nonnumeric_captions_are_preserved(self):
+        write_bytes(self.public / "sample_photos" / "20260711_173358.jpg", b"\xff\xd8\xff\xd9")
+        write_bytes(self.public / "sample_photos" / "camp-lights.jpg", b"\xff\xd8\xff\xd9")
+        write_text(
+            self.public / "photo_overrides.json",
+            json.dumps({"photos": [{"image": "sample_photos/20260711_173358.jpg", "caption": "Manual time"}]}),
+        )
+
+        catalog, result = refresh_photos.build_catalog(self.public)
+        captions = {photo["image"]: photo["caption"] for photo in catalog["photos"]}
+
+        self.assertEqual(captions["sample_photos/20260711_173358.jpg"], "Manual time")
+        self.assertEqual(captions["sample_photos/camp-lights.jpg"], "Camp Lights")
+
+    def test_title_markdown_parses_standard_album_structure(self):
+        title, errors = refresh_photos.parse_title_markdown(
+            "# Trail album\n## Day one\n\nFirst paragraph.\nwraps here.\n\nSecond.\n"
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            title,
+            {
+                "schemaVersion": 1,
+                "title": "Trail album",
+                "subtitle": "Day one",
+                "paragraphs": ["First paragraph. wraps here.", "Second."],
+            },
+        )
+
+    def test_missing_or_malformed_title_blocks_refresh(self):
+        write_bytes(self.public / "sample_photos" / "plain.svg", b"<svg></svg>")
+
+        with mock.patch.object(refresh_photos, "ROOT", Path(self.tmp.name)):
+            with contextlib.redirect_stdout(io.StringIO()):
+                missing_code = refresh_photos.refresh(self.public)
+
+        write_text(Path(self.tmp.name) / "title.md", "## Subtitle without title\n")
+        with mock.patch.object(refresh_photos, "ROOT", Path(self.tmp.name)):
+            with contextlib.redirect_stdout(io.StringIO()):
+                malformed_code = refresh_photos.refresh(self.public)
+
+        self.assertEqual(missing_code, 1)
+        self.assertEqual(malformed_code, 1)
+
+    def test_refresh_writes_generated_public_title_data(self):
+        write_bytes(self.public / "sample_photos" / "plain.svg", b"<svg></svg>")
+        write_text(Path(self.tmp.name) / "title.md", "# Trail album\n\nShared from title.md.\n")
+
+        with mock.patch.object(refresh_photos, "ROOT", Path(self.tmp.name)):
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = refresh_photos.refresh(self.public)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            json.loads((self.public / "title.json").read_text(encoding="utf-8")),
+            {"schemaVersion": 1, "paragraphs": ["Shared from title.md."], "subtitle": "", "title": "Trail album"},
+        )
+
     def test_missing_exif_and_gps_are_reported_without_blocking_svg(self):
         write_bytes(self.public / "sample_photos" / "plain.jpg", b"\xff\xd8\xff\xd9")
         write_bytes(self.public / "sample_photos" / "plain.svg", b"<svg></svg>")
@@ -180,7 +270,7 @@ class RefreshPhotosTest(unittest.TestCase):
 
         self.assertEqual(code, 1)
         self.assertEqual((self.public / "photos.json").read_text(encoding="utf-8"), '{"old": true}\n')
-        self.assertIn("Check failed: photos.json would change.", output.getvalue())
+        self.assertIn("Check failed: generated public data would change.", output.getvalue())
 
     def test_repeated_refresh_is_deterministic_and_second_run_unchanged(self):
         write_bytes(self.public / "sample_photos" / "b.svg", b"<svg></svg>")
@@ -189,13 +279,16 @@ class RefreshPhotosTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             first = refresh_photos.refresh(self.public)
         first_content = (self.public / "photos.json").read_bytes()
+        first_title_content = (self.public / "title.json").read_bytes()
         with contextlib.redirect_stdout(io.StringIO()):
             second = refresh_photos.refresh(self.public)
         second_content = (self.public / "photos.json").read_bytes()
+        second_title_content = (self.public / "title.json").read_bytes()
 
         self.assertEqual(first, 0)
         self.assertEqual(second, 0)
         self.assertEqual(first_content, second_content)
+        self.assertEqual(first_title_content, second_title_content)
 
     def test_new_catalog_is_world_readable_for_static_hosting(self):
         write_bytes(self.public / "sample_photos" / "plain.svg", b"<svg></svg>")

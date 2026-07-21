@@ -31,12 +31,18 @@ class StaticGalleryTest(unittest.TestCase):
         parser = GalleryParser()
         parser.feed((PUBLIC / "index.html").read_text(encoding="utf-8"))
 
-        self.assertEqual(parser.links, ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css"])
+        self.assertEqual(
+            parser.links,
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=album-title-20260721"],
+        )
         self.assertEqual(
             parser.scripts,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=album-title-20260721"],
         )
         for element_id in {
+            "albumTitle",
+            "albumSubtitle",
+            "albumDescription",
             "thumbnailList",
             "previousPhoto",
             "nextPhoto",
@@ -92,6 +98,7 @@ class StaticGalleryTest(unittest.TestCase):
             "index.html",
             "styles.css",
             "photos.json",
+            "title.json",
             "photo_overrides.json",
             "app.js",
         }
@@ -108,8 +115,11 @@ class StaticGalleryTest(unittest.TestCase):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("selectPhoto(0);", app)
-        self.assertIn('const catalogUrl = "photos.json";', app)
+        self.assertIn('const assetVersion = "album-title-20260721";', app)
+        self.assertIn("const catalogUrl = `photos.json?v=${assetVersion}`;", app)
+        self.assertIn("const titleUrl = `title.json?v=${assetVersion}`;", app)
         self.assertIn("await fetch(catalogUrl", app)
+        self.assertIn("await loadAlbumTitle()", app)
         self.assertNotIn("window.tinyPhotoMapPhotos", app)
         self.assertIn('button.addEventListener("click", () => selectPhoto(index));', app)
         self.assertIn('previousPhoto.addEventListener("click"', app)

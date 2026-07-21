@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Tiny Photo Map</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=album-title-20260721">
   </head>
   <body>
     <main class="gallery-shell" aria-label="Tiny Photo Map gallery">
       <aside class="trip-panel" aria-label="Trip photos">
         <header class="trip-summary">
-          <p class="eyebrow">Static demo gallery</p>
-          <h1>Portland Demo Locations</h1>
-          <p>Placeholder photos with clearly labeled demonstration coordinates at public Portland locations.</p>
+          <p id="albumSubtitle" class="eyebrow"></p>
+          <h1 id="albumTitle">Loading album</h1>
+          <div id="albumDescription"></div>
         </header>
         <div id="thumbnailList" class="thumbnail-list" aria-label="Photo thumbnails"></div>
       </aside>
@@ -59,6 +59,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=album-title-20260721"></script>
   </body>
 </html>

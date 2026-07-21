@@ -12,8 +12,10 @@ import struct
 import sys
 import tempfile
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,9 +23,12 @@ PUBLIC = ROOT / "public"
 PHOTO_DIR = PUBLIC / "sample_photos"
 CATALOG_PATH = PUBLIC / "photos.json"
 OVERRIDES_PATH = PUBLIC / "photo_overrides.json"
+TITLE_SOURCE_PATH = ROOT / "title.md"
+TITLE_DATA_PATH = PUBLIC / "title.json"
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".svg"}
 JPEG_EXTENSIONS = {".jpg", ".jpeg"}
 SCHEMA_VERSION = 1
+OREGON_TIME = ZoneInfo("America/Los_Angeles")
 APPROVED_OVERRIDE_FIELDS = {
     "id",
     "caption",
@@ -123,6 +128,58 @@ def load_overrides(path: Path) -> tuple[dict[str, dict[str, Any]], list[str]]:
     return overrides, errors
 
 
+def parse_title_markdown(content: str) -> tuple[dict[str, Any], list[str]]:
+    title = ""
+    subtitle = ""
+    paragraphs: list[str] = []
+    current_paragraph: list[str] = []
+    errors: list[str] = []
+
+    def finish_paragraph() -> None:
+        if current_paragraph:
+            paragraphs.append(" ".join(current_paragraph))
+            current_paragraph.clear()
+
+    for line_number, raw_line in enumerate(content.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            finish_paragraph()
+            continue
+        if line.startswith("# "):
+            finish_paragraph()
+            if title:
+                errors.append(f"title.md:{line_number}: only one # album title is supported")
+            title = line[2:].strip()
+        elif line.startswith("## "):
+            finish_paragraph()
+            if subtitle:
+                errors.append(f"title.md:{line_number}: only one ## subtitle is supported")
+            subtitle = line[3:].strip()
+        elif line.startswith("#"):
+            errors.append(f"title.md:{line_number}: unsupported heading level")
+        else:
+            current_paragraph.append(line)
+
+    finish_paragraph()
+    if not title:
+        errors.append("title.md: missing # album title")
+
+    return {"schemaVersion": SCHEMA_VERSION, "title": title, "subtitle": subtitle, "paragraphs": paragraphs}, errors
+
+
+def load_title(source_path: Path = TITLE_SOURCE_PATH) -> tuple[dict[str, Any], list[str]]:
+    if not source_path.exists():
+        return {"schemaVersion": SCHEMA_VERSION, "title": "", "subtitle": "", "paragraphs": []}, [
+            f"{source_path}: missing title.md"
+        ]
+    try:
+        return parse_title_markdown(source_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return {"schemaVersion": SCHEMA_VERSION, "title": "", "subtitle": "", "paragraphs": []}, [
+            f"{source_path}: could not read title.md: {exc}"
+        ]
+
+
 def rational_value(value: Any) -> float | None:
     if isinstance(value, tuple) and len(value) == 2:
         numerator, denominator = value
@@ -204,15 +261,19 @@ class ExifReader:
         exif_tags = self.parse_ifd(tags.get(0x8769, 0)) if isinstance(tags.get(0x8769), int) else {}
         gps_tags = self.parse_ifd(tags.get(0x8825, 0)) if isinstance(tags.get(0x8825), int) else {}
 
-        date = exif_tags.get(0x9003) or exif_tags.get(0x9004) or tags.get(0x0132)
-        if isinstance(date, str) and re.match(r"^\d{4}:\d{2}:\d{2}", date):
-            date = date[:10].replace(":", "-")
+        date_time = exif_tags.get(0x9003) or exif_tags.get(0x9004) or tags.get(0x0132)
+        offset_time = exif_tags.get(0x9011) or exif_tags.get(0x9012) or exif_tags.get(0x9010)
+        date = None
+        if isinstance(date_time, str) and re.match(r"^\d{4}:\d{2}:\d{2}", date_time):
+            date = date_time[:10].replace(":", "-")
         else:
-            date = None
+            date_time = None
+        if not (isinstance(offset_time, str) and re.match(r"^[+-]\d{2}:\d{2}$", offset_time)):
+            offset_time = None
 
         lat = gps_coordinate(gps_tags.get(0x0002), gps_tags.get(0x0001))
         lon = gps_coordinate(gps_tags.get(0x0004), gps_tags.get(0x0003))
-        return {"date": date, "lat": lat, "lon": lon}
+        return {"date": date, "dateTime": date_time, "offsetTime": offset_time, "lat": lat, "lon": lon}
 
     def unpack(self, fmt: str, offset: int) -> int:
         size = struct.calcsize(fmt)
@@ -281,8 +342,44 @@ def read_exif(path: Path) -> tuple[dict[str, Any], str | None]:
 
 def default_caption(filename: str) -> str:
     stem = Path(filename).stem
+    friendly = friendly_numeric_caption(stem)
+    if friendly:
+        return friendly
     words = re.sub(r"[_-]+", " ", stem).strip()
     return words.title() if words else filename
+
+
+def parse_camera_filename_datetime(stem: str) -> datetime | None:
+    match = re.fullmatch(r"(\d{8})[ _](\d{6})(?:\(\d+\))?", stem)
+    if not match:
+        return None
+    try:
+        return datetime.strptime("".join(match.groups()), "%Y%m%d%H%M%S")
+    except ValueError:
+        return None
+
+
+def friendly_datetime(value: datetime) -> str:
+    hour = value.strftime("%I").lstrip("0")
+    return f"{value.day} {value.strftime('%b')} {value.year}, {hour}:{value.strftime('%M')} {value.strftime('%p')}"
+
+
+def friendly_numeric_caption(stem: str, exif: dict[str, Any] | None = None) -> str | None:
+    camera_time = parse_camera_filename_datetime(stem)
+    if camera_time is None:
+        return None
+
+    exif = exif or {}
+    date_time = exif.get("dateTime")
+    offset_time = exif.get("offsetTime")
+    if isinstance(date_time, str) and isinstance(offset_time, str):
+        try:
+            aware = datetime.strptime(date_time + offset_time, "%Y:%m:%d %H:%M:%S%z")
+            return friendly_datetime(aware)
+        except ValueError:
+            pass
+
+    return friendly_datetime(camera_time.replace(tzinfo=OREGON_TIME))
 
 
 def discover_photo_files(photo_dir: Path) -> tuple[list[Path], list[str]]:
@@ -327,6 +424,7 @@ def build_catalog(public_dir: Path = PUBLIC) -> tuple[dict[str, Any], RefreshRes
         by_canonical_name[canonical] = path
 
         relative_image = f"sample_photos/{path.name}"
+        exif: dict[str, Any] = {}
         record: dict[str, Any] = {
             "id": unique_id(path.name, used_ids),
             "caption": default_caption(path.name),
@@ -340,6 +438,11 @@ def build_catalog(public_dir: Path = PUBLIC) -> tuple[dict[str, Any], RefreshRes
             if error:
                 result.unreadable.append(RefreshMessage("unreadable", path.name, error))
             record.update({key: exif[key] for key in ("date", "lat", "lon") if exif.get(key) is not None})
+
+        friendly_caption = friendly_numeric_caption(path.stem, exif)
+        if friendly_caption:
+            record["caption"] = friendly_caption
+            record["alt"] = friendly_caption
 
         override = overrides.get(relative_image, {})
         record.update(override)
@@ -403,26 +506,32 @@ def print_summary(result: RefreshResult, catalog_path: Path) -> None:
 
 def refresh(public_dir: Path, check: bool = False) -> int:
     catalog_path = public_dir / "photos.json"
+    title_path = public_dir / "title.json"
     catalog, result = build_catalog(public_dir)
+    title, title_errors = load_title(ROOT / "title.md")
+    result.override_errors.extend(title_errors)
     content = json_bytes(catalog)
+    title_content = json_bytes(title)
     existing = catalog_path.read_bytes() if catalog_path.exists() else None
+    existing_title = title_path.read_bytes() if title_path.exists() else None
 
     if result.blocking_problem_count:
         print_summary(result, catalog_path)
         print("Refresh failed: blocking catalog input problems were found.")
         return 1
 
-    if existing == content:
+    if existing == content and existing_title == title_content:
         result.unchanged = True
     elif check:
         result.unchanged = False
     else:
         atomic_write(catalog_path, content)
+        atomic_write(title_path, title_content)
         result.written = True
 
     print_summary(result, catalog_path)
-    if check and existing != content:
-        print("Check failed: photos.json would change.")
+    if check and (existing != content or existing_title != title_content):
+        print("Check failed: generated public data would change.")
         return 1
     return 0
 

@@ -3,6 +3,9 @@
   let selectedIndex = 0;
 
   const thumbnailList = document.getElementById("thumbnailList");
+  const albumTitle = document.getElementById("albumTitle");
+  const albumSubtitle = document.getElementById("albumSubtitle");
+  const albumDescription = document.getElementById("albumDescription");
   const mainPhoto = document.getElementById("mainPhoto");
   const photoCaption = document.getElementById("photoCaption");
   const photoDate = document.getElementById("photoDate");
@@ -11,7 +14,9 @@
   const regionalCoordinates = document.getElementById("regionalCoordinates");
   const localCoordinates = document.getElementById("localCoordinates");
   const noDemoCoordinatesText = "No demonstration coordinates for this photo";
-  const catalogUrl = "photos.json";
+  const assetVersion = "album-title-20260721";
+  const catalogUrl = `photos.json?v=${assetVersion}`;
+  const titleUrl = `title.json?v=${assetVersion}`;
   const regionalZoom = 10;
   const localZoom = 14;
   const maps = {
@@ -61,6 +66,28 @@
     localCoordinates.textContent = noDemoCoordinatesText;
     previousPhoto.disabled = true;
     nextPhoto.disabled = true;
+  }
+
+  function renderAlbumTitle(titleData) {
+    if (!titleData || typeof titleData !== "object") {
+      return;
+    }
+
+    albumTitle.textContent = safeText(titleData.title, "Photo album");
+    albumSubtitle.textContent = safeText(titleData.subtitle, "");
+    albumSubtitle.hidden = !albumSubtitle.textContent;
+    albumDescription.textContent = "";
+
+    if (Array.isArray(titleData.paragraphs)) {
+      titleData.paragraphs.forEach((paragraph) => {
+        if (typeof paragraph !== "string" || !paragraph.trim()) {
+          return;
+        }
+        const element = document.createElement("p");
+        element.textContent = paragraph;
+        albumDescription.appendChild(element);
+      });
+    }
   }
 
   function showMapFallback(mapState, message) {
@@ -289,7 +316,22 @@
     return parseCatalog(await response.json());
   }
 
+  async function loadAlbumTitle() {
+    const response = await fetch(titleUrl, { cache: "no-cache" });
+    if (!response.ok) {
+      throw new Error(`title.json returned HTTP ${response.status}.`);
+    }
+
+    return response.json();
+  }
+
   async function initializeGallery() {
+    try {
+      renderAlbumTitle(await loadAlbumTitle());
+    } catch (error) {
+      renderAlbumTitle({ title: "Photo album", subtitle: "", paragraphs: [] });
+    }
+
     try {
       photos = await loadCatalog();
     } catch (error) {
