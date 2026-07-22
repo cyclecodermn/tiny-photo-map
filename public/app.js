@@ -8,7 +8,6 @@
   const albumDescription = document.getElementById("albumDescription");
   const mainPhoto = document.getElementById("mainPhoto");
   const photoCaption = document.getElementById("photoCaption");
-  const photoDate = document.getElementById("photoDate");
   const photoCounter = document.getElementById("photoCounter");
   const previousPhoto = document.getElementById("previousPhoto");
   const nextPhoto = document.getElementById("nextPhoto");
@@ -76,7 +75,6 @@
     mainPhoto.removeAttribute("src");
     mainPhoto.alt = "";
     photoCaption.textContent = message;
-    photoDate.textContent = "";
     photoCounter.textContent = "";
     previousPhoto.disabled = true;
     nextPhoto.disabled = true;
@@ -467,7 +465,6 @@
     mainPhoto.src = photo.image;
     mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));
     photoCaption.textContent = safeText(photo.caption, photo.image);
-    photoDate.textContent = safeText(photo.date, "");
     fitViewerImage();
     updateLocalMapView(photo);
     updateMapMarkerState();

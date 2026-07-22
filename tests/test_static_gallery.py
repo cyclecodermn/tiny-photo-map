@@ -156,7 +156,6 @@ class StaticGalleryTest(unittest.TestCase):
             "mainPhoto.src = photo.image;",
             'mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));',
             "photoCaption.textContent = safeText(photo.caption, photo.image);",
-            'photoDate.textContent = safeText(photo.date, "");',
             "updatePhotoCounter();",
             "scrollSelectedThumbnailIntoView();",
             "fitViewerImage();",
@@ -357,7 +356,6 @@ class StaticGalleryTest(unittest.TestCase):
         self.assertEqual(title["title"], "Mt. Hood Photo Map")
         self.assertEqual(title["subtitle"], "")
         self.assertNotIn("July 2026", json.dumps(title))
-        self.assertIn('photoDate.textContent = safeText(photo.date, "");', app)
         self.assertIn('photoCounter.textContent = `Photo ${selectedIndex + 1} of ${photos.length}`;', app)
         self.assertTrue(any(photo["caption"] == "9 Jul 2026, 10:44 AM" for photo in catalog["photos"]))
         self.assertTrue(any(photo["date"] == "2026-07-09" for photo in catalog["photos"]))
@@ -610,7 +608,7 @@ class BrowserGalleryTest(unittest.TestCase):
         self.assertEqual(self.page.locator(".photo-map-star").count(), 2)
         self.assertEqual(self.page.locator(".photo-map-circle").count(), coord_count * 2 - 2)
         self.assertEqual(self.page.locator("#photoCounter").text_content(), f"Photo 1 of {total}")
-        self.assertEqual(self.page.locator("#photoDate").text_content(), photos[0]["date"])
+        self.assertEqual(self.page.locator("#photoCaption").text_content(), photos[0]["caption"])
 
         selected_thumbnail = self.page.locator(".thumbnail-button[aria-current='true']")
         self.assertEqual(selected_thumbnail.evaluate("el => getComputedStyle(el).borderColor"), "rgb(11, 79, 74)")
@@ -626,7 +624,6 @@ class BrowserGalleryTest(unittest.TestCase):
         self.page.locator("#nextPhoto").click()
         self._wait_for_counter(f"Photo 2 of {total}")
         self.assertEqual(self.page.locator("#photoCaption").text_content(), photos[1]["caption"])
-        self.assertEqual(self.page.locator("#photoDate").text_content(), photos[1]["date"])
 
         self.page.locator("#previousPhoto").click()
         self._wait_for_counter(f"Photo 1 of {total}")
