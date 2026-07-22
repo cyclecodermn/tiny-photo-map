@@ -1,8 +1,14 @@
 from html.parser import HTMLParser
 import json
+import socket
+import subprocess
+import sys
+import time
 from pathlib import Path
 import re
 import unittest
+
+from playwright.sync_api import sync_playwright
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,11 +39,11 @@ class StaticGalleryTest(unittest.TestCase):
 
         self.assertEqual(
             parser.links,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=viewer-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=viewer-20260722"],
         )
         self.assertEqual(
             parser.scripts,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=viewer-20260721"],
+            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=viewer-20260722"],
         )
         for element_id in {
             "albumTitle",
@@ -61,6 +67,7 @@ class StaticGalleryTest(unittest.TestCase):
             "zoomOutPhoto",
             "zoomInPhoto",
             "zoomLevel",
+            "photoCounter",
             "restoreGallery",
         }:
             self.assertIn(element_id, parser.ids)
@@ -125,7 +132,7 @@ class StaticGalleryTest(unittest.TestCase):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("selectPhoto(0);", app)
-        self.assertIn('const assetVersion = "viewer-20260721";', app)
+        self.assertIn('const assetVersion = "viewer-20260722";', app)
         self.assertIn("const catalogUrl = `photos.json?v=${assetVersion}`;", app)
         self.assertIn("const titleUrl = `title.json?v=${assetVersion}`;", app)
         self.assertIn("await fetch(catalogUrl", app)
@@ -142,18 +149,25 @@ class StaticGalleryTest(unittest.TestCase):
             "mainPhoto.src = photo.image;",
             'mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));',
             "photoCaption.textContent = safeText(photo.caption, photo.image);",
-            'photoDate.textContent = "";',
+            'photoDate.textContent = safeText(photo.date, "");',
+            "updatePhotoCounter();",
+            "scrollSelectedThumbnailIntoView();",
             "if (viewerOpen) {",
             "resetViewerZoom();",
             "updateLocalMapView(photo);",
             "updateMapMarkerState();",
             'button.classList.toggle("is-selected", isSelected);',
-            'button.setAttribute("aria-current", isSelected ? "true" : "false");',
+            'button.setAttribute("aria-current", "true");',
+            'button.removeAttribute("aria-current");',
             "marker.setIcon(createMarkerIcon(isSelected));",
+            "marker.setZIndexOffset(isSelected ? 1000 : 0);",
+            "closeAllMarkerPopups();",
         }:
             self.assertIn(expected, app)
-        self.assertNotIn("openPopup", app)
-        self.assertNotIn("closePopup", app)
+        self.assertIn("options.popup.openOn(options.mapState.instance);", app)
+        self.assertIn("marker.popup = L.popup({", app)
+        self.assertIn(".setContent(buildMarkerPopupContent(photo));", app)
+        self.assertIn("mapState.instance.closePopup();", app)
 
     def test_leaflet_maps_use_topographic_tiles_and_attribution(self):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
@@ -287,14 +301,18 @@ class StaticGalleryTest(unittest.TestCase):
             "function buildMapMarkers(mapState)",
             "const marker = L.marker([photo.lat, photo.lon], {",
             "keyboard: true,",
+            "bubblingMouseEvents: false,",
             "icon: createMarkerIcon(false)",
-            'marker.on("click", () => selectPhoto(index));',
+            "marker.popup = L.popup({",
+            'marker.on("click", (event) => {',
+            "L.DomEvent.stop(event.originalEvent);",
+            'selectPhoto(index, { mapState, popup: marker.popup });',
             "marker.addTo(mapState.instance);",
             "mapState.markers.set(photo.id, marker);",
+            'mapState.instance.on("click", closeAllMarkerPopups);',
+            'document.addEventListener("click", handleDocumentClick);',
         }:
             self.assertIn(expected, app)
-        self.assertNotIn("bindPopup", app)
-        self.assertNotIn("createMarkerPopup", app)
 
     def test_map_markers_use_star_icons_with_visible_selected_state(self):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
@@ -303,18 +321,24 @@ class StaticGalleryTest(unittest.TestCase):
         for expected in {
             "function createMarkerIcon(isSelected)",
             'className: `photo-map-marker${isSelected ? " is-selected" : ""}`',
-            'html: \'<span class="photo-map-star" aria-hidden="true"></span>\'',
-            "iconSize: isSelected ? [22, 22] : [16, 16],",
-            "iconAnchor: isSelected ? [11, 11] : [8, 8]",
+            "html: isSelected",
+            'html: isSelected',
+            "iconSize: isSelected ? [24, 24] : [18, 18],",
+            "iconAnchor: isSelected ? [12, 12] : [9, 9]",
         }:
             self.assertIn(expected, app)
 
         for expected in {
+            ".photo-map-circle",
             ".photo-map-star",
             "clip-path: polygon(",
-            "background: #b91c1c;",
+            "background: #111827;",
             ".photo-map-marker.is-selected .photo-map-star",
             "background: #facc15;",
+            "border: 2px solid #1f2937;",
+            ".photo-marker-popup-caption",
+            ".photo-counter",
+            ".thumbnail-button.is-selected::after",
         }:
             self.assertIn(expected, styles)
 
@@ -326,8 +350,8 @@ class StaticGalleryTest(unittest.TestCase):
         self.assertEqual(title["title"], "Mt. Hood Photo Map")
         self.assertEqual(title["subtitle"], "")
         self.assertNotIn("July 2026", json.dumps(title))
-        self.assertNotIn('photoDate.textContent = safeText(photo.date, "Date unavailable");', app)
-        self.assertIn('photoDate.textContent = "";', app)
+        self.assertIn('photoDate.textContent = safeText(photo.date, "");', app)
+        self.assertIn('photoCounter.textContent = `Photo ${selectedIndex + 1} of ${photos.length}`;', app)
         self.assertTrue(any(photo["caption"] == "9 Jul 2026, 10:44 AM" for photo in catalog["photos"]))
         self.assertTrue(any(photo["date"] == "2026-07-09" for photo in catalog["photos"]))
 
@@ -465,6 +489,175 @@ class StaticGalleryTest(unittest.TestCase):
             "object-fit: contain;",
         }:
             self.assertIn(expected, styles)
+
+
+class BrowserGalleryTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._server_port = cls._find_free_port()
+        cls._server = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "http.server",
+                str(cls._server_port),
+                "--bind",
+                "127.0.0.1",
+            ],
+            cwd=PUBLIC,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        cls._base_url = f"http://127.0.0.1:{cls._server_port}/index.html"
+        cls._wait_for_server()
+        cls._playwright = sync_playwright().start()
+        cls._browser = cls._playwright.chromium.launch(headless=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._browser.close()
+        cls._playwright.stop()
+        cls._server.terminate()
+        try:
+            cls._server.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            cls._server.kill()
+
+    @classmethod
+    def _find_free_port(cls):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            return sock.getsockname()[1]
+
+    @classmethod
+    def _wait_for_server(cls):
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", cls._server_port), timeout=0.2):
+                    return
+            except OSError:
+                time.sleep(0.1)
+        raise RuntimeError("static server did not start")
+
+    def setUp(self):
+        self.page = self._browser.new_page(viewport={"width": 1440, "height": 1200})
+        self.console_errors = []
+        self.page_errors = []
+        self.page.on("console", self._collect_console)
+        self.page.on("pageerror", lambda error: self.page_errors.append(str(error)))
+
+    def tearDown(self):
+        self.page.close()
+
+    def _collect_console(self, message):
+        if message.type == "error":
+            self.console_errors.append(message.text)
+
+    def _load_app(self):
+        catalog = json.loads((PUBLIC / "photos.json").read_text(encoding="utf-8"))
+        total = len(catalog["photos"])
+        self.page.goto(self._base_url, wait_until="load")
+        self.page.wait_for_function(
+            """(expected) => document.querySelector('#photoCounter')?.textContent === expected""",
+            arg=f"Photo 1 of {total}",
+        )
+        self.page.wait_for_function(
+            "() => document.querySelectorAll('.photo-map-marker').length > 0"
+        )
+        return catalog
+
+    def _wait_for_counter(self, expected):
+        self.page.wait_for_function(
+            """(value) => document.querySelector('#photoCounter')?.textContent === value""",
+            arg=expected,
+        )
+
+    def test_marker_hierarchy_popup_and_selection_are_synchronized(self):
+        catalog = self._load_app()
+        photos = catalog["photos"]
+        total = len(photos)
+        middle_index = total // 2
+        no_gps_index = next(
+            index for index, photo in enumerate(photos) if "lat" not in photo and "lon" not in photo
+        )
+        coord_count = sum(1 for photo in photos if "lat" in photo and "lon" in photo)
+
+        self.assertEqual(self.page.locator(".leaflet-popup").count(), 0)
+        self.assertEqual(self.page.locator(".thumbnail-button[aria-current='true']").count(), 1)
+        self.assertEqual(self.page.locator(".photo-map-marker.is-selected").count(), 2)
+        self.assertEqual(self.page.locator(".photo-map-star").count(), 2)
+        self.assertEqual(self.page.locator(".photo-map-circle").count(), coord_count * 2 - 2)
+        self.assertEqual(self.page.locator("#photoCounter").text_content(), f"Photo 1 of {total}")
+        self.assertEqual(self.page.locator("#photoDate").text_content(), photos[0]["date"])
+
+        selected_thumbnail = self.page.locator(".thumbnail-button[aria-current='true']")
+        self.assertEqual(selected_thumbnail.evaluate("el => getComputedStyle(el).borderColor"), "rgb(11, 79, 74)")
+
+        selected_marker_z = self.page.locator(".photo-map-marker.is-selected").first.evaluate(
+            "el => Number.parseInt(el.style.zIndex || '0', 10)"
+        )
+        other_marker_z = self.page.locator(".photo-map-marker:not(.is-selected)").first.evaluate(
+            "el => Number.parseInt(el.style.zIndex || '0', 10)"
+        )
+        self.assertGreater(selected_marker_z, other_marker_z)
+
+        self.page.locator("#nextPhoto").click()
+        self._wait_for_counter(f"Photo 2 of {total}")
+        self.assertEqual(self.page.locator("#photoCaption").text_content(), photos[1]["caption"])
+        self.assertEqual(self.page.locator("#photoDate").text_content(), photos[1]["date"])
+
+        self.page.locator("#previousPhoto").click()
+        self._wait_for_counter(f"Photo 1 of {total}")
+        self.assertEqual(self.page.locator(".thumbnail-button[aria-current='true']").count(), 1)
+
+        self.page.locator(".thumbnail-button").nth(middle_index).click()
+        self._wait_for_counter(f"Photo {middle_index + 1} of {total}")
+        middle_has_coordinates = "lat" in photos[middle_index] and "lon" in photos[middle_index]
+        self.assertEqual(
+            self.page.locator(".photo-map-marker.is-selected").count(),
+            2 if middle_has_coordinates else 0,
+        )
+
+        self.page.locator("#regionalMap .photo-map-marker").nth(1).dispatch_event("click")
+        self._wait_for_counter(f"Photo 2 of {total}")
+        self.page.wait_for_function("() => document.querySelectorAll('.leaflet-popup').length === 1")
+        self.assertEqual(self.page.locator(".leaflet-popup").count(), 1)
+        self.assertIn(photos[1]["caption"], self.page.locator(".leaflet-popup").text_content())
+
+        self.page.locator("#regionalMap .photo-map-marker").nth(2).dispatch_event("click")
+        self.page.wait_for_function("() => document.querySelectorAll('.leaflet-popup').length === 1")
+        self.assertEqual(self.page.locator(".leaflet-popup").count(), 1)
+        self.assertIn(photos[2]["caption"], self.page.locator(".leaflet-popup").text_content())
+
+        self.page.locator("#regionalMap").click(position={"x": 320, "y": 260}, force=True)
+        self.page.wait_for_function("() => document.querySelector('.leaflet-popup') === null")
+        self.assertEqual(self.page.locator(".leaflet-popup").count(), 0)
+
+        self.page.locator(".thumbnail-button").nth(total - 1).click()
+        self._wait_for_counter(f"Photo {total} of {total}")
+        self.assertEqual(self.page.locator(".photo-map-marker.is-selected").count(), 2)
+
+        self.page.evaluate(
+            """() => {
+                const list = document.querySelector('.thumbnail-list');
+                list.scrollTop = list.scrollHeight;
+                window.scrollTo(0, 0);
+            }"""
+        )
+        self.page.locator(".thumbnail-button").first.click()
+        self._wait_for_counter("Photo 1 of {}".format(total))
+        self.page.wait_for_function(
+            "() => document.querySelector('.thumbnail-list').scrollTop < 40"
+        )
+        self.assertEqual(self.page.evaluate("window.scrollY"), 0)
+
+        self.page.locator(".thumbnail-button").nth(no_gps_index).click()
+        self._wait_for_counter(f"Photo {no_gps_index + 1} of {total}")
+        self.assertEqual(self.page.locator(".photo-map-marker.is-selected").count(), 0)
+
+        self.assertEqual(self.console_errors, [])
+        self.assertEqual(self.page_errors, [])
 
 
 if __name__ == "__main__":

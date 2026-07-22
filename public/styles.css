@@ -107,6 +107,7 @@ button {
 }
 
 .thumbnail-button {
+  position: relative;
   display: block;
   width: 100%;
   height: 8rem;
@@ -127,8 +128,25 @@ button {
 
 .thumbnail-button:focus-visible,
 .thumbnail-button.is-selected {
-  border-color: var(--accent);
+  border-color: var(--accent-strong);
   outline: none;
+}
+
+.thumbnail-button.is-selected {
+  box-shadow: 0 0 0 3px rgba(11, 79, 74, 0.16);
+}
+
+.thumbnail-button.is-selected::after {
+  content: "";
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.45);
 }
 
 .photo-panel {
@@ -164,6 +182,13 @@ button {
   margin: 0.35rem 0 0;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.photo-counter {
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .arrow-button {
@@ -407,23 +432,65 @@ button {
   background: transparent;
 }
 
+.photo-map-circle,
 .photo-map-star {
   display: block;
   width: 100%;
   height: 100%;
-  background: #b91c1c;
+}
+
+.photo-map-circle {
+  border: 2px solid #1f2937;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75);
+}
+
+.photo-map-star {
+  position: relative;
   clip-path: polygon(50% 0%, 61% 34%, 98% 35%, 68% 56%, 79% 91%, 50% 70%, 21% 91%, 32% 56%, 2% 35%, 39% 34%);
-  filter: drop-shadow(0 0 1px #ffffff) drop-shadow(0 0.18rem 0.28rem rgba(24, 33, 31, 0.42));
+  background: #111827;
+  filter: drop-shadow(0 0.18rem 0.28rem rgba(24, 33, 31, 0.42));
+}
+
+.photo-map-star::after {
+  content: "";
+  position: absolute;
+  inset: 0.18rem;
+  clip-path: inherit;
+  background: #facc15;
 }
 
 .photo-map-marker.is-selected {
-  width: 1.375rem;
-  height: 1.375rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  z-index: 1000;
 }
 
 .photo-map-marker.is-selected .photo-map-star {
-  background: #facc15;
   filter: drop-shadow(0 0 1px #111827) drop-shadow(0 0 0.2rem #111827) drop-shadow(0 0.22rem 0.34rem rgba(24, 33, 31, 0.45));
+}
+
+.photo-marker-popup {
+  margin: 0;
+  color: var(--ink);
+}
+
+.photo-marker-popup p {
+  margin: 0;
+}
+
+.photo-marker-popup-caption {
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.photo-marker-popup-date {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.3;
 }
 
 .map-fallback {

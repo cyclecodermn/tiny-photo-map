@@ -9,6 +9,7 @@
   const mainPhoto = document.getElementById("mainPhoto");
   const photoCaption = document.getElementById("photoCaption");
   const photoDate = document.getElementById("photoDate");
+  const photoCounter = document.getElementById("photoCounter");
   const previousPhoto = document.getElementById("previousPhoto");
   const nextPhoto = document.getElementById("nextPhoto");
   const galleryShell = document.getElementById("galleryShell");
@@ -23,7 +24,7 @@
   const restoreGallery = document.getElementById("restoreGallery");
   const zoomLevel = document.getElementById("zoomLevel");
   const noDemoCoordinatesText = "No demonstration coordinates for this photo";
-  const assetVersion = "viewer-20260721";
+  const assetVersion = "viewer-20260722";
   const catalogUrl = `photos.json?v=${assetVersion}`;
   const titleUrl = `title.json?v=${assetVersion}`;
   const regionalZoom = 10;
@@ -75,6 +76,7 @@
     mainPhoto.alt = "";
     photoCaption.textContent = message;
     photoDate.textContent = "";
+    photoCounter.textContent = "";
     previousPhoto.disabled = true;
     nextPhoto.disabled = true;
   }
@@ -113,10 +115,52 @@
   function createMarkerIcon(isSelected) {
     return L.divIcon({
       className: `photo-map-marker${isSelected ? " is-selected" : ""}`,
-      html: '<span class="photo-map-star" aria-hidden="true"></span>',
-      iconSize: isSelected ? [22, 22] : [16, 16],
-      iconAnchor: isSelected ? [11, 11] : [8, 8]
+      html: isSelected
+        ? '<span class="photo-map-star" aria-hidden="true"></span>'
+        : '<span class="photo-map-circle" aria-hidden="true"></span>',
+      iconSize: isSelected ? [24, 24] : [18, 18],
+      iconAnchor: isSelected ? [12, 12] : [9, 9]
     });
+  }
+
+  function buildMarkerPopupContent(photo) {
+    const popup = document.createElement("div");
+    popup.className = "photo-marker-popup";
+
+    const caption = document.createElement("p");
+    caption.className = "photo-marker-popup-caption";
+    caption.textContent = safeText(photo.caption, photo.image);
+    popup.appendChild(caption);
+
+    if (photo.date && photo.date !== caption.textContent) {
+      const date = document.createElement("p");
+      date.className = "photo-marker-popup-date";
+      date.textContent = photo.date;
+      popup.appendChild(date);
+    }
+
+    return popup;
+  }
+
+  function closeAllMarkerPopups() {
+    Object.values(maps).forEach((mapState) => {
+      mapState.markers.forEach((marker) => {
+        if (marker.popup) {
+          marker.popup.remove();
+        }
+      });
+      if (mapState.instance) {
+        mapState.instance.closePopup();
+      }
+    });
+  }
+
+  function handleDocumentClick(event) {
+    if (event.target.closest(".leaflet-marker-icon") || event.target.closest(".leaflet-popup")) {
+      return;
+    }
+
+    closeAllMarkerPopups();
   }
 
   function updateMapMarkerState() {
@@ -133,6 +177,7 @@
       mapState.markers.forEach((marker, photoId) => {
         const isSelected = photoId === photo.id;
         marker.setIcon(createMarkerIcon(isSelected));
+        marker.setZIndexOffset(isSelected ? 1000 : 0);
       });
     });
   }
@@ -192,6 +237,39 @@
     zoomLevel.textContent = `${viewerZoom}x`;
     zoomOutPhoto.disabled = viewerZoom <= minViewerZoom;
     zoomInPhoto.disabled = viewerZoom >= maxViewerZoom;
+  }
+
+  function updatePhotoCounter() {
+    if (!photos.length) {
+      photoCounter.textContent = "";
+      return;
+    }
+
+    photoCounter.textContent = `Photo ${selectedIndex + 1} of ${photos.length}`;
+  }
+
+  function scrollSelectedThumbnailIntoView() {
+    const selectedButton = thumbnailList.querySelector(".thumbnail-button.is-selected");
+    if (!selectedButton) {
+      return;
+    }
+
+    const padding = 16;
+    const viewTop = thumbnailList.scrollTop;
+    const viewBottom = viewTop + thumbnailList.clientHeight;
+    const buttonTop = selectedButton.offsetTop;
+    const buttonBottom = buttonTop + selectedButton.offsetHeight;
+
+    if (buttonTop >= viewTop + padding && buttonBottom <= viewBottom - padding) {
+      return;
+    }
+
+    const nextTop = Math.max(
+      0,
+      buttonTop - thumbnailList.clientHeight / 2 + selectedButton.offsetHeight / 2
+    );
+
+    thumbnailList.scrollTo({ top: nextTop, behavior: "smooth" });
   }
 
   function resetViewerZoom() {
@@ -319,25 +397,36 @@
     document.querySelectorAll(".thumbnail-button").forEach((button, buttonIndex) => {
       const isSelected = buttonIndex === selectedIndex;
       button.classList.toggle("is-selected", isSelected);
-      button.setAttribute("aria-current", isSelected ? "true" : "false");
+      if (isSelected) {
+        button.setAttribute("aria-current", "true");
+      } else {
+        button.removeAttribute("aria-current");
+      }
       button.setAttribute("aria-pressed", isSelected ? "true" : "false");
     });
   }
 
-  function selectPhoto(index) {
+  function selectPhoto(index, options = {}) {
     selectedIndex = (index + photos.length) % photos.length;
     const photo = photos[selectedIndex];
 
+    closeAllMarkerPopups();
     mainPhoto.src = photo.image;
     mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));
     photoCaption.textContent = safeText(photo.caption, photo.image);
-    photoDate.textContent = "";
+    photoDate.textContent = safeText(photo.date, "");
     if (viewerOpen) {
       resetViewerZoom();
     }
     updateLocalMapView(photo);
     updateMapMarkerState();
     updateSelectedThumbnail();
+    updatePhotoCounter();
+    scrollSelectedThumbnailIntoView();
+
+    if (options.popup && options.mapState) {
+      options.popup.openOn(options.mapState.instance);
+    }
   }
 
   function buildThumbnails() {
@@ -381,13 +470,27 @@
 
       const marker = L.marker([photo.lat, photo.lon], {
         alt: formatDemoLocation(photo),
+        bubblingMouseEvents: false,
         keyboard: true,
-        riseOnHover: true,
-        title: safeText(photo.demoLocationNote, formatDemoLocation(photo)),
         icon: createMarkerIcon(false)
       });
 
-      marker.on("click", () => selectPhoto(index));
+      marker.popup = L.popup({
+        autoClose: false,
+        closeButton: false,
+        closeOnClick: false,
+        className: "photo-marker-popup",
+        maxWidth: 220,
+        offset: L.point(0, -10)
+      })
+        .setLatLng([photo.lat, photo.lon])
+        .setContent(buildMarkerPopupContent(photo));
+      marker.on("click", (event) => {
+        if (event.originalEvent) {
+          L.DomEvent.stop(event.originalEvent);
+        }
+        selectPhoto(index, { mapState, popup: marker.popup });
+      });
       marker.addTo(mapState.instance);
       mapState.markers.set(photo.id, marker);
     });
@@ -415,6 +518,7 @@
         scrollWheelZoom: false
       }).setView([firstMappedPhoto.lat, firstMappedPhoto.lon], mapState.zoom);
 
+      mapState.instance.on("click", closeAllMarkerPopups);
       addTileLayer(mapState);
       buildMapMarkers(mapState);
       setTimeout(() => mapState.instance.invalidateSize(), 0);
@@ -512,6 +616,7 @@
     nextPhoto.addEventListener("click", () => selectPhoto(selectedIndex + 1));
     initializePanelToggles();
     initializeViewerControls();
+    document.addEventListener("click", handleDocumentClick);
     selectPhoto(0);
   }
 
