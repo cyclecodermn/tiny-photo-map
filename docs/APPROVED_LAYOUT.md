@@ -50,3 +50,5 @@ Do not include:
 - changes to Photoview
 
 The site should remain understandable as ordinary static files with a small amount of JavaScript.
+
+The live public version belongs under `public/` and should remain self-contained so Caddy can serve `/pics/` directly from the project.
