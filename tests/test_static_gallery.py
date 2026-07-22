@@ -39,11 +39,17 @@ class StaticGalleryTest(unittest.TestCase):
 
         self.assertEqual(
             parser.links,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css", "styles.css?v=viewer-20260722"],
+            [
+                "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css",
+                "styles.css?v=viewer-20260722-nav",
+            ],
         )
         self.assertEqual(
             parser.scripts,
-            ["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js", "app.js?v=viewer-20260722"],
+            [
+                "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js",
+                "app.js?v=viewer-20260722-nav",
+            ],
         )
         for element_id in {
             "albumTitle",
@@ -65,6 +71,7 @@ class StaticGalleryTest(unittest.TestCase):
             "viewerPreviousPhoto",
             "viewerNextPhoto",
             "zoomOutPhoto",
+            "fitPhoto",
             "zoomInPhoto",
             "zoomLevel",
             "photoCounter",
@@ -132,7 +139,7 @@ class StaticGalleryTest(unittest.TestCase):
         app = (PUBLIC / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("selectPhoto(0);", app)
-        self.assertIn('const assetVersion = "viewer-20260722";', app)
+        self.assertIn('const assetVersion = "viewer-20260722-nav";', app)
         self.assertIn("const catalogUrl = `photos.json?v=${assetVersion}`;", app)
         self.assertIn("const titleUrl = `title.json?v=${assetVersion}`;", app)
         self.assertIn("await fetch(catalogUrl", app)
@@ -152,8 +159,8 @@ class StaticGalleryTest(unittest.TestCase):
             'photoDate.textContent = safeText(photo.date, "");',
             "updatePhotoCounter();",
             "scrollSelectedThumbnailIntoView();",
-            "if (viewerOpen) {",
-            "resetViewerZoom();",
+            "fitViewerImage();",
+            "photoFrame.scrollTo({ top: 0, left: 0, behavior: \"auto\" });",
             "updateLocalMapView(photo);",
             "updateMapMarkerState();",
             'button.classList.toggle("is-selected", isSelected);',
@@ -426,6 +433,8 @@ class StaticGalleryTest(unittest.TestCase):
             'aria-label="Next photo in full-screen viewer"',
             'id="zoomOutPhoto"',
             'aria-label="Zoom out selected photo"',
+            'id="fitPhoto"',
+            'aria-label="Fit image to viewer"',
             'id="zoomInPhoto"',
             'aria-label="Zoom in selected photo"',
             'id="restoreGallery"',
@@ -437,6 +446,8 @@ class StaticGalleryTest(unittest.TestCase):
         for expected in {
             ".open-viewer-button:focus-visible",
             ".viewer-button:focus-visible",
+            ".fit-button",
+            ".viewer-button:disabled",
             ".photo-frame.is-viewer-open .viewer-controls",
             "@media (max-width: 900px)",
             "max-width: calc(100vw - 1rem);",
@@ -455,7 +466,15 @@ class StaticGalleryTest(unittest.TestCase):
             "async function restoreGalleryLayout()",
             "document.exitFullscreen",
             "document.addEventListener(\"fullscreenchange\", () => {",
-            "document.addEventListener(\"keydown\", (event) => {",
+            "function isKeyboardEditableTarget(event)",
+            'typeof event.composedPath === "function" ? event.composedPath()[0] : event.target',
+            "const target = pathTarget instanceof Element ? pathTarget : document.activeElement;",
+            "function handleViewerKeyboardShortcuts(event)",
+            'event.key === "ArrowLeft"',
+            'event.key === "ArrowRight"',
+            'event.key === "+" || event.key === "="',
+            'event.key === "-" || event.key === "_"',
+            "document.addEventListener(\"keydown\", handleViewerKeyboardShortcuts);",
             'if (event.key === "Escape" && viewerOpen) {',
             "restoreGalleryLayout();",
             "setTimeout(refreshMapsAfterLayoutChange, 0);",
@@ -474,7 +493,10 @@ class StaticGalleryTest(unittest.TestCase):
             "zoomOutPhoto.disabled = viewerZoom <= minViewerZoom;",
             "zoomInPhoto.disabled = viewerZoom >= maxViewerZoom;",
             "Math.min(maxViewerZoom, Math.max(minViewerZoom, nextZoom));",
+            "function fitViewerImage()",
+            'photoFrame.scrollTo({ top: 0, left: 0, behavior: "auto" });',
             "zoomOutPhoto.addEventListener(\"click\", () => adjustViewerZoom(-1));",
+            "fitPhoto.addEventListener(\"click\", fitViewerImage);",
             "zoomInPhoto.addEventListener(\"click\", () => adjustViewerZoom(1));",
             "viewerPreviousPhoto.addEventListener(\"click\", () => selectPhoto(selectedIndex - 1));",
             "viewerNextPhoto.addEventListener(\"click\", () => selectPhoto(selectedIndex + 1));",
@@ -489,7 +511,6 @@ class StaticGalleryTest(unittest.TestCase):
             "object-fit: contain;",
         }:
             self.assertIn(expected, styles)
-
 
 class BrowserGalleryTest(unittest.TestCase):
     @classmethod
@@ -655,6 +676,139 @@ class BrowserGalleryTest(unittest.TestCase):
         self.page.locator(".thumbnail-button").nth(no_gps_index).click()
         self._wait_for_counter(f"Photo {no_gps_index + 1} of {total}")
         self.assertEqual(self.page.locator(".photo-map-marker.is-selected").count(), 0)
+
+        self.assertEqual(self.console_errors, [])
+        self.assertEqual(self.page_errors, [])
+
+    def test_viewer_keyboard_shortcuts_and_fit_reset_behavior(self):
+        catalog = self._load_app()
+        photos = catalog["photos"]
+        total = len(photos)
+
+        self.page.keyboard.press("ArrowLeft")
+        self._wait_for_counter(f"Photo {total} of {total}")
+        self.assertEqual(self.page.locator("#photoCaption").text_content(), photos[-1]["caption"])
+
+        self.page.keyboard.press("ArrowRight")
+        self._wait_for_counter("Photo 1 of {}".format(total))
+        self.assertEqual(self.page.locator("#photoCaption").text_content(), photos[0]["caption"])
+
+        self.page.locator("#openViewer").click()
+        self.page.wait_for_function("() => document.querySelector('.photo-frame').classList.contains('is-viewer-open')")
+        self.assertTrue(self.page.locator(".photo-frame").evaluate("el => el.classList.contains('is-viewer-open')"))
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "1x")
+
+        self.page.keyboard.press("=")
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "1.5x")
+        self.page.keyboard.press("+")
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "2x")
+        self.page.keyboard.press("-")
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "1.5x")
+
+        self.page.evaluate(
+            """() => {
+                const frame = document.querySelector('#photoFrame');
+                frame.scrollTop = 200;
+                frame.scrollLeft = 160;
+            }"""
+        )
+        self.page.locator("#fitPhoto").click()
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "1x")
+        self.assertTrue(self.page.locator("#zoomOutPhoto").is_disabled())
+        self.assertFalse(self.page.locator("#zoomInPhoto").is_disabled())
+        self.page.wait_for_function(
+            "() => document.querySelector('#photoFrame').scrollTop === 0 && document.querySelector('#photoFrame').scrollLeft === 0"
+        )
+
+        for _ in range(6):
+            if self.page.locator("#zoomInPhoto").is_disabled():
+                break
+            self.page.locator("#zoomInPhoto").click()
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "4x")
+        self.assertTrue(self.page.locator("#zoomInPhoto").is_disabled())
+        self.assertFalse(self.page.locator("#zoomOutPhoto").is_disabled())
+
+        self.page.keyboard.press("ArrowRight")
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "1x")
+        self.assertTrue(self.page.locator("#zoomOutPhoto").is_disabled())
+        self.page.wait_for_function("() => document.querySelector('#photoFrame').scrollTop === 0")
+
+        self.page.keyboard.press("Escape")
+        self.page.wait_for_function("() => !document.querySelector('.photo-frame').classList.contains('is-viewer-open')")
+        self.assertFalse(self.page.locator(".photo-frame").evaluate("el => el.classList.contains('is-viewer-open')"))
+
+        self.page.evaluate(
+            """() => {
+                const input = document.createElement('input');
+                input.id = 'keyboard-test-input';
+                const textarea = document.createElement('textarea');
+                textarea.id = 'keyboard-test-textarea';
+                const select = document.createElement('select');
+                select.id = 'keyboard-test-select';
+                select.innerHTML = '<option>One</option><option>Two</option>';
+                const editable = document.createElement('div');
+                editable.id = 'keyboard-test-editable';
+                editable.contentEditable = 'true';
+                editable.textContent = 'Editable';
+                document.body.append(input, textarea, select, editable);
+            }"""
+        )
+
+        for control_id in {
+            "keyboard-test-input",
+            "keyboard-test-textarea",
+            "keyboard-test-select",
+            "keyboard-test-editable",
+        }:
+            self.assertTrue(
+                self.page.evaluate(
+                    """(id) => {
+                        const control = document.getElementById(id);
+                        return window.__tinyPhotoMapDebug.isKeyboardEditableTarget({
+                            composedPath: () => [control],
+                            target: control
+                        });
+                    }""",
+                    control_id,
+                )
+            )
+
+        self.page.locator("#openViewer").click()
+        self.page.wait_for_function("() => document.querySelector('.photo-frame').classList.contains('is-viewer-open')")
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "1x")
+        self.page.evaluate(
+            """() => {
+                const input = document.getElementById('keyboard-test-input');
+                window.__tinyPhotoMapDebug.handleViewerKeyboardShortcuts({
+                    composedPath: () => [input],
+                    key: '=',
+                    preventDefault() {}
+                });
+            }"""
+        )
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "1x")
+        self.page.evaluate(
+            """() => {
+                const input = document.getElementById('keyboard-test-input');
+                window.__tinyPhotoMapDebug.handleViewerKeyboardShortcuts({
+                    composedPath: () => [input],
+                    key: '-',
+                    preventDefault() {}
+                });
+            }"""
+        )
+        self.assertEqual(self.page.locator("#zoomLevel").text_content(), "1x")
+        self.page.evaluate(
+            """() => {
+                const input = document.getElementById('keyboard-test-input');
+                window.__tinyPhotoMapDebug.handleViewerKeyboardShortcuts({
+                    composedPath: () => [input],
+                    key: 'Escape',
+                    preventDefault() {}
+                });
+            }"""
+        )
+        self.page.wait_for_function("() => !document.querySelector('.photo-frame').classList.contains('is-viewer-open')")
 
         self.assertEqual(self.console_errors, [])
         self.assertEqual(self.page_errors, [])

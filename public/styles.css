@@ -301,7 +301,7 @@ button {
   top: 1rem;
   right: 1rem;
   display: none;
-  grid-template-columns: 2.75rem 2.75rem minmax(3.25rem, auto) 2.75rem 2.75rem auto;
+  grid-template-columns: 2.75rem 2.75rem minmax(4.25rem, auto) minmax(3.25rem, auto) 2.75rem 2.75rem auto;
   gap: 0.5rem;
   align-items: center;
   max-width: calc(100vw - 2rem);
@@ -316,6 +316,10 @@ button {
   min-width: 2.75rem;
   min-height: 2.75rem;
   padding: 0.45rem 0.7rem;
+}
+
+.fit-button {
+  white-space: nowrap;
 }
 
 .viewer-button:disabled {
@@ -583,7 +587,7 @@ button {
   .viewer-controls {
     left: 0.5rem;
     right: 0.5rem;
-    grid-template-columns: 2.5rem 2.5rem minmax(2.75rem, auto) 2.5rem 2.5rem minmax(0, auto);
+    grid-template-columns: 2.5rem 2.5rem minmax(4rem, auto) minmax(2.75rem, auto) 2.5rem 2.5rem minmax(0, auto);
     gap: 0.35rem;
     max-width: calc(100vw - 1rem);
   }

@@ -21,10 +21,11 @@
   const viewerNextPhoto = document.getElementById("viewerNextPhoto");
   const zoomOutPhoto = document.getElementById("zoomOutPhoto");
   const zoomInPhoto = document.getElementById("zoomInPhoto");
+  const fitPhoto = document.getElementById("fitPhoto");
   const restoreGallery = document.getElementById("restoreGallery");
   const zoomLevel = document.getElementById("zoomLevel");
   const noDemoCoordinatesText = "No demonstration coordinates for this photo";
-  const assetVersion = "viewer-20260722";
+  const assetVersion = "viewer-20260722-nav";
   const catalogUrl = `photos.json?v=${assetVersion}`;
   const titleUrl = `title.json?v=${assetVersion}`;
   const regionalZoom = 10;
@@ -239,6 +240,12 @@
     zoomInPhoto.disabled = viewerZoom >= maxViewerZoom;
   }
 
+  function fitViewerImage() {
+    viewerZoom = minViewerZoom;
+    updateViewerZoom();
+    photoFrame.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }
+
   function updatePhotoCounter() {
     if (!photos.length) {
       photoCounter.textContent = "";
@@ -272,11 +279,6 @@
     thumbnailList.scrollTo({ top: nextTop, behavior: "smooth" });
   }
 
-  function resetViewerZoom() {
-    viewerZoom = minViewerZoom;
-    updateViewerZoom();
-  }
-
   function setViewerOpen(isOpen, usesFallback) {
     viewerOpen = isOpen;
     fallbackViewerOpen = isOpen && usesFallback;
@@ -285,12 +287,12 @@
     openViewer.setAttribute("aria-expanded", isOpen ? "true" : "false");
 
     if (isOpen) {
-      resetViewerZoom();
+      fitViewerImage();
       photoFrame.focus();
       return;
     }
 
-    resetViewerZoom();
+    fitViewerImage();
     setTimeout(refreshMapsAfterLayoutChange, 0);
   }
 
@@ -332,12 +334,67 @@
     updateViewerZoom();
   }
 
+  function isKeyboardEditableTarget(event) {
+    const pathTarget =
+      typeof event.composedPath === "function" ? event.composedPath()[0] : event.target;
+    const target = pathTarget instanceof Element ? pathTarget : document.activeElement;
+
+    if (!(target instanceof Element)) {
+      return false;
+    }
+
+    return (
+      target.isContentEditable ||
+      target.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']") !== null
+    );
+  }
+
+  function handleViewerKeyboardShortcuts(event) {
+    if (event.key === "Escape" && viewerOpen) {
+      event.preventDefault();
+      restoreGalleryLayout();
+      return;
+    }
+
+    if (isKeyboardEditableTarget(event)) {
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      selectPhoto(selectedIndex - 1);
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      selectPhoto(selectedIndex + 1);
+      return;
+    }
+
+    if (!viewerOpen) {
+      return;
+    }
+
+    if (event.key === "+" || event.key === "=") {
+      event.preventDefault();
+      adjustViewerZoom(1);
+      return;
+    }
+
+    if (event.key === "-" || event.key === "_") {
+      event.preventDefault();
+      adjustViewerZoom(-1);
+    }
+  }
+
   function initializeViewerControls() {
     openViewer.setAttribute("aria-expanded", "false");
     openViewer.addEventListener("click", openFullScreenViewer);
     viewerPreviousPhoto.addEventListener("click", () => selectPhoto(selectedIndex - 1));
     viewerNextPhoto.addEventListener("click", () => selectPhoto(selectedIndex + 1));
     zoomOutPhoto.addEventListener("click", () => adjustViewerZoom(-1));
+    fitPhoto.addEventListener("click", fitViewerImage);
     zoomInPhoto.addEventListener("click", () => adjustViewerZoom(1));
     restoreGallery.addEventListener("click", restoreGalleryLayout);
     document.addEventListener("fullscreenchange", () => {
@@ -350,11 +407,7 @@
         setViewerOpen(false, false);
       }
     });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && viewerOpen) {
-        restoreGalleryLayout();
-      }
-    });
+    document.addEventListener("keydown", handleViewerKeyboardShortcuts);
     updateViewerZoom();
   }
 
@@ -415,9 +468,7 @@
     mainPhoto.alt = safeText(photo.alt, safeText(photo.caption, "Trip photo"));
     photoCaption.textContent = safeText(photo.caption, photo.image);
     photoDate.textContent = safeText(photo.date, "");
-    if (viewerOpen) {
-      resetViewerZoom();
-    }
+    fitViewerImage();
     updateLocalMapView(photo);
     updateMapMarkerState();
     updateSelectedThumbnail();
@@ -618,6 +669,13 @@
     initializeViewerControls();
     document.addEventListener("click", handleDocumentClick);
     selectPhoto(0);
+  }
+
+  if (location.hostname === "127.0.0.1" || location.hostname === "localhost") {
+    window.__tinyPhotoMapDebug = {
+      handleViewerKeyboardShortcuts,
+      isKeyboardEditableTarget
+    };
   }
 
   initializeGallery();
